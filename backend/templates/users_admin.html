@@ -1,0 +1,88 @@
+<!DOCTYPE html>
+<html lang="uk">
+
+<head>
+    <meta charset="UTF-8">
+    <title>Користувачі | NutritionAI</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/lucide@latest"></script>
+</head>
+
+<body class="bg-[#0A0A0A] text-white p-8">
+    <div class="max-w-5xl mx-auto">
+        <header class="flex justify-between items-center mb-8">
+            <h1 class="text-3xl font-bold text-green-400">Керування користувачами</h1>
+            <a href="/admin/dashboard" class="text-gray-400 hover:text-white flex items-center gap-2">
+                <i data-lucide="arrow-left"></i> Назад
+            </a>
+        </header>
+
+        <div class="mb-6 relative">
+            <i data-lucide="search" class="absolute left-4 top-3.5 text-gray-500 w-5 h-5"></i>
+            <input type="text" id="userSearch" onkeyup="filterUsers()" placeholder="Пошук за email..."
+                class="w-full bg-[#1A1A1A] border border-gray-800 rounded-xl py-3 pl-12 pr-4 focus:border-green-400 outline-none">
+        </div>
+
+        <div id="usersContainer" class="space-y-4">
+            {% for user in users %}
+            <div class="user-card bg-[#1A1A1A] rounded-xl border border-gray-800" data-email="{{ user.email.lower() }}">
+                <div class="p-4 flex justify-between items-center cursor-pointer"
+                    onclick="toggleDetails('{{ user.id }}')">
+                    <div class="flex items-center gap-4">
+                        <div
+                            class="w-10 h-10 bg-green-500/20 rounded-full flex items-center justify-center text-green-400 font-bold">
+                            {{ user.email[0].upper() if user.email else '?' }}
+                        </div>
+                        <div>
+                            <p class="font-bold">{{ user.email }}</p>
+                            <p class="text-xs text-gray-500">ID: {{ user.id }}</p>
+                        </div>
+                    </div>
+                    <div class="flex gap-6 text-sm items-center">
+                        <span class="px-3 py-1 rounded-full text-xs font-bold 
+                            {% if user.goal == 'gain' %} bg-blue-500/20 text-blue-400 
+                            {% elif user.goal == 'lose' %} bg-red-500/20 text-red-400 
+                            {% else %} bg-green-500/20 text-green-400 {% endif %}">
+                            {% if user.goal == 'gain' %} Набір маси
+                            {% elif user.goal == 'lose' %} Схуднення
+                            {% else %} Підтримка {% endif %}
+                        </span>
+                        <span class="text-gray-400"><b>{{ user.weight|int }}</b> кг</span>
+                        <i data-lucide="chevron-down" id="icon-{{ user.id }}"></i>
+                    </div>
+                </div>
+
+                <div id="details-{{ user.id }}" class="hidden p-6 border-t border-gray-800 bg-black/20">
+                    <div id="meals-{{ user.id }}" class="space-y-2 text-xs">Завантаження історії...</div>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+
+    <script>
+        lucide.createIcons();
+        function filterUsers() {
+            const val = document.getElementById('userSearch').value.toLowerCase();
+            document.querySelectorAll('.user-card').forEach(card => {
+                card.style.display = card.dataset.email.includes(val) ? "block" : "none";
+            });
+        }
+        async function toggleDetails(uid) {
+            const el = document.getElementById(`details-${uid}`);
+            if (!el.classList.contains('hidden')) { el.classList.add('hidden'); return; }
+            el.classList.remove('hidden');
+            const res = await fetch(`/admin/user_details/${uid}`);
+            const data = await res.json();
+            document.getElementById(`meals-${uid}`).innerHTML = data.map(m => `
+                <div class="flex justify-between p-2 bg-white/5 rounded border border-white/5">
+                    <span class="text-green-400 font-bold">${m.display_time}</span>
+                    <span class="text-gray-300 font-medium">${m.calories} ккал</span>
+                    <span class="text-gray-500">Б:${Math.round(m.protein)} Ж:${Math.round(m.fat)} В:${Math.round(m.carbs)}</span>
+                </div>
+            `).join('');
+        }
+    </script>
+</body>
+
+</html>

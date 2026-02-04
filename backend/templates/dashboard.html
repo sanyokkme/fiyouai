@@ -1,0 +1,139 @@
+<!DOCTYPE html>
+<html lang="uk">
+<head>
+    <meta charset="UTF-8">
+    <title>NutritionAI Admin | Dashboard</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <style>
+        body { background-color: #0A0A0A; color: #E5E7EB; font-family: 'Inter', sans-serif; }
+        .glass-card { background: #1A1A1A; border: 1px solid #2A2A2A; border-radius: 1rem; }
+    </style>
+</head>
+<body class="p-6 md:p-10">
+    <div class="max-w-7xl mx-auto">
+        
+        <header class="flex justify-between items-center mb-10">
+            <div>
+                <h1 class="text-3xl font-bold text-green-400">NutritionAI Admin</h1>
+                <p class="text-gray-500">Система керування та моніторингу</p>
+            </div>
+            <div class="flex gap-3">
+                <a href="{{ docker_url }}" target="_blank" class="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 px-4 py-2 rounded-lg text-sm transition">
+                    <i data-lucide="container"></i> Portainer
+                </a>
+                <a href="/admin/stories"
+                    class="flex items-center gap-2 bg-purple-600 hover:bg-purple-700 px-4 py-2 rounded-lg text-sm transition">
+                    <i data-lucide="image"></i> Stories
+                </a>
+                <a href="/admin/users_list" class="flex items-center gap-2 bg-gray-800 hover:bg-gray-700 px-4 py-2 rounded-lg text-sm transition">
+                    <i data-lucide="users"></i> Користувачі
+                </a>
+            </div>
+        </header>
+
+        <div class="grid grid-cols-1 md:grid-cols-4 gap-6 mb-10">
+            <div class="glass-card p-6">
+                <div class="flex justify-between items-start">
+                    <div>
+                        <p class="text-gray-500 text-xs uppercase">Всього юзерів</p>
+                        <h2 class="text-2xl font-bold">{{ users|length }}</h2>
+                    </div>
+                    <i data-lucide="user-plus" class="text-green-400"></i>
+                </div>
+            </div>
+            <div class="glass-card p-6">
+                <div class="flex justify-between items-start">
+                    <div>
+                        <p class="text-gray-500 text-xs uppercase">AI Статус</p>
+                        <h2 class="text-xl font-bold text-green-400">GPT-4o Online</h2>
+                    </div>
+                    <i data-lucide="cpu" class="text-blue-400"></i>
+                </div>
+            </div>
+            <div class="glass-card p-6">
+                <div class="flex justify-between items-start">
+                    <div>
+                        <p class="text-gray-500 text-xs uppercase">Docker Контейнери</p>
+                        <h2 class="text-xl font-bold">Active</h2>
+                    </div>
+                    <i data-lucide="box" class="text-purple-400"></i>
+                </div>
+            </div>
+            <div class="glass-card p-6">
+                <div class="flex justify-between items-start">
+                    <div>
+                        <p class="text-gray-500 text-xs uppercase">Запитів сьогодні</p>
+                        <h2 class="text-2xl font-bold">{{ recent_meals|length }}</h2>
+                    </div>
+                    <i data-lucide="activity" class="text-orange-400"></i>
+                </div>
+            </div>
+        </div>
+
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
+            <div class="lg:col-span-2 glass-card overflow-hidden">
+                <div class="p-6 border-b border-gray-800">
+                    <h3 class="font-bold">Остання активність</h3>
+                </div>
+                <table class="w-full text-left text-sm">
+                    <thead class="bg-black/40 text-gray-500">
+                        <tr>
+                            <th class="p-4">Email Користувача</th>
+                            <th class="p-4">Ккал</th>
+                            <th class="p-4">Макроси</th>
+                            <th class="p-4">Зображення</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for meal in recent_meals %}
+                        <tr class="border-b border-gray-800 hover:bg-white/5">
+                            <td class="p-4 font-medium">{{ meal.user_email }}</td>
+                            <td class="p-4 text-green-400 font-bold">{{ meal.calories }}</td>
+                            <td class="p-4 text-gray-400 text-xs">Б:{{meal.protein}} Ж:{{meal.fat}} В:{{meal.carbs}}</td>
+                            <td class="p-4">
+                                {% if meal.image_url %}
+                                <img src="{{ meal.image_url }}" class="w-10 h-10 rounded shadow-lg object-cover">
+                                {% endif %}
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+
+            <div class="glass-card p-6">
+                <h3 class="font-bold mb-6">Графік активності</h3>
+                <canvas id="caloriesChart" height="300"></canvas>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Ініціалізація іконок
+        lucide.createIcons();
+
+        const ctx = document.getElementById('caloriesChart').getContext('2d');
+        const data = {{ chart_data | tojson }};
+        new Chart(ctx, {
+            type: 'line',
+            data: {
+                labels: data.map(d => d.day.slice(5)),
+                datasets: [{
+                    label: 'Ккал',
+                    data: data.map(d => d.value),
+                    borderColor: '#4ADE80',
+                    tension: 0.4,
+                    fill: true,
+                    backgroundColor: 'rgba(74, 222, 128, 0.1)'
+                }]
+            },
+            options: {
+                plugins: { legend: { display: false } },
+                scales: { y: { display: false }, x: { grid: { display: false } } }
+            }
+        });
+    </script>
+</body>
+</html>

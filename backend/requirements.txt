@@ -1,0 +1,15 @@
+openai
+python_jose
+supabase
+fastapi
+uvicorn[standard]
+python-multipart
+jinja2
+python-dotenv
+Pillow
+httpx
+pytz
+rich
+pydantic
+email-validator
+pydantic-settings

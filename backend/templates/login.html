@@ -1,0 +1,26 @@
+<!DOCTYPE html>
+<html lang="uk">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Admin Login | NutritionAI</title>
+    <style>
+        body { background: #121212; color: white; font-family: sans-serif; display: flex; justify-content: center; align-items: center; height: 100vh; margin: 0; }
+        .login-card { background: #1e1e1e; padding: 2rem; border-radius: 12px; box-shadow: 0 10px 30px rgba(0,0,0,0.5); width: 300px; }
+        h2 { text-align: center; color: #00ff88; }
+        input { width: 100%; padding: 12px; margin: 10px 0; border-radius: 6px; border: 1px solid #333; background: #2a2a2a; color: white; box-sizing: border-box; }
+        button { width: 100%; padding: 12px; border: none; border-radius: 6px; background: #00ff88; color: #121212; font-weight: bold; cursor: pointer; transition: 0.3s; }
+        button:hover { background: #00cc6e; }
+    </style>
+</head>
+<body>
+    <div class="login-card">
+        <h2>NutritionAI Admin</h2>
+        <form action="/admin/dashboard" method="post">
+            <input type="text" name="username" placeholder="Логін" required>
+            <input type="password" name="password" placeholder="Пароль" required>
+            <button type="submit">Увійти</button>
+        </form>
+    </div>
+</body>
+</html>

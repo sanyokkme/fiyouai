@@ -1,0 +1,42 @@
+version: '3.8'
+
+services:
+  fastapi_backend:
+    build:
+      context: .
+    container_name: fastapi_backend
+    ports:
+      - "8000:8000"
+    volumes:
+      - .:/app
+    env_file:
+      - .env
+    environment:
+      - PYTHONUNBUFFERED=1
+      - SUPABASE_URL=${SUPABASE_URL}
+      - SUPABASE_SERVICE_ROLE_KEY=${SUPABASE_SERVICE_ROLE_KEY}
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+    restart: on-failure
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+    command: >
+      sh -c "python banner.py && 
+      uvicorn main:app --host 0.0.0.0 --port 8000 --reload --log-level critical"
+
+  #portainer:
+   # image: portainer/portainer-ce:latest
+    #container_name: portainer
+    #restart: always
+    #ports:
+      #- "9000:9000"
+    #volumes:
+      #- /var/run/docker.sock:/var/run/docker.sock
+      #- portainer_data:/var/lib/portainer
+    # Використовуємо стандартний запуск
+    #command: -H unix:///var/run/docker.sock
+
+#volumes:
+  #portainer_data:
