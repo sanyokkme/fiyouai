@@ -49,13 +49,13 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
       // --- 2. ЗАПИТ НА СЕРВЕР (У ФОНІ) ---
       final responses = await Future.wait([
         http.get(
-          Uri.parse('http://${AuthService.serverIp}:8000/user_status/$userId'),
+          Uri.parse('${AuthService.baseUrl}/user_status/$userId'),
         ),
         http.get(
-          Uri.parse('http://${AuthService.serverIp}:8000/analytics/$userId'),
+          Uri.parse('${AuthService.baseUrl}/analytics/$userId'),
         ),
         http.get(
-          Uri.parse('http://${AuthService.serverIp}:8000/get_tips/$userId'),
+          Uri.parse('${AuthService.baseUrl}/get_tips/$userId'),
         ),
       ]);
 

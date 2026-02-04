@@ -121,7 +121,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
 
     try {
       final res = await http.get(
-        Uri.parse('http://${AuthService.serverIp}:8000/user_status/$userId'),
+        Uri.parse('${AuthService.baseUrl}/user_status/$userId'),
       );
 
       if (res.statusCode == 200) {
@@ -166,7 +166,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
       }
 
       final res = await http.post(
-        Uri.parse('http://${AuthService.serverIp}:8000/add_water'),
+        Uri.parse('${AuthService.baseUrl}/add_water'),
         headers: {'Content-Type': 'application/json'},
         body: jsonEncode({
           "user_id": userId,

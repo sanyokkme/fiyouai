@@ -66,7 +66,7 @@ class _CameraScreenState extends State<CameraScreen> {
       // Відправка на бекенд для аналізу
       var request = http.MultipartRequest(
         'POST',
-        Uri.parse('http://${AuthService.serverIp}:8000/analyze_image'),
+        Uri.parse('${AuthService.baseUrl}/analyze_image'),
       );
 
       request.fields['user_id'] = userId ?? "";
@@ -302,7 +302,7 @@ class _AnalysisResultSheet extends StatelessWidget {
       debugPrint("Sending Manual Meal: ${jsonEncode(bodyData)}");
 
       final response = await http.post(
-        Uri.parse('http://${AuthService.serverIp}:8000/add_manual_meal'),
+        Uri.parse('${AuthService.baseUrl}/add_manual_meal'),
         headers: {'Content-Type': 'application/json'},
         body: jsonEncode(bodyData),
       );

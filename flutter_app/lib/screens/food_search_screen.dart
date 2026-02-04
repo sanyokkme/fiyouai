@@ -56,7 +56,7 @@ class _FoodSearchScreenState extends State<FoodSearchScreen> {
     try {
       final res = await http.get(
         Uri.parse(
-          'http://${AuthService.serverIp}:8000/search_food?query=$query',
+          '${AuthService.baseUrl}/search_food?query=$query',
         ),
       );
 
@@ -112,7 +112,7 @@ class _FoodSearchScreenState extends State<FoodSearchScreen> {
       debugPrint("Sending data: $mealData"); // ДЛЯ ВІДЛАДКИ
 
       final res = await http.post(
-        Uri.parse('http://${AuthService.serverIp}:8000/add_manual_meal'),
+        Uri.parse('${AuthService.baseUrl}/add_manual_meal'),
         headers: {'Content-Type': 'application/json'},
         body: jsonEncode(mealData),
       );

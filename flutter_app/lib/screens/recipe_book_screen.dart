@@ -25,7 +25,7 @@ class _RecipeBookScreenState extends State<RecipeBookScreen> {
     try {
       final userId = await AuthService.getStoredUserId();
       final res = await http.get(
-        Uri.parse('http://${AuthService.serverIp}:8000/saved_recipes/$userId'),
+        Uri.parse('${AuthService.baseUrl}/saved_recipes/$userId'),
       );
       if (res.statusCode == 200) {
         setState(() {
@@ -42,7 +42,7 @@ class _RecipeBookScreenState extends State<RecipeBookScreen> {
     try {
       final res = await http.delete(
         Uri.parse(
-          'http://${AuthService.serverIp}:8000/delete_recipe/$recipeId',
+          '${AuthService.baseUrl}/delete_recipe/$recipeId',
         ),
       );
       if (res.statusCode == 200) {
@@ -86,7 +86,7 @@ class _RecipeBookScreenState extends State<RecipeBookScreen> {
     try {
       final userId = await AuthService.getStoredUserId();
       final res = await http.post(
-        Uri.parse('http://${AuthService.serverIp}:8000/add_from_recipe'),
+        Uri.parse('${AuthService.baseUrl}/add_from_recipe'),
         headers: {"Content-Type": "application/json"},
         body: jsonEncode({
           "user_id": userId,

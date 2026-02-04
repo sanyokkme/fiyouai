@@ -42,7 +42,7 @@ class DataManager {
   ) async {
     try {
       final res = await http.get(
-        Uri.parse('http://${AuthService.serverIp}:8000$endpoint'),
+        Uri.parse('${AuthService.baseUrl}$endpoint'),
       );
       if (res.statusCode == 200) {
         final prefs = await SharedPreferences.getInstance();
@@ -69,7 +69,7 @@ class DataManager {
 
       try {
         final res = await http.get(
-          Uri.parse('http://${AuthService.serverIp}:8000/get_tips/$userId'),
+          Uri.parse('${AuthService.baseUrl}/get_tips/$userId'),
         );
 
         if (res.statusCode == 200) {

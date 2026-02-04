@@ -45,7 +45,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
     try {
       // 2. МЕРЕЖА (У фоні)
       final response = await http.get(
-        Uri.parse('http://${AuthService.serverIp}:8000/profile/$userId'),
+        Uri.parse('${AuthService.baseUrl}/profile/$userId'),
       );
 
       if (response.statusCode == 200) {
@@ -97,7 +97,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
     try {
       final userId = await AuthService.getStoredUserId();
       await http.post(
-        Uri.parse('http://${AuthService.serverIp}:8000/profile/update'),
+        Uri.parse('${AuthService.baseUrl}/profile/update'),
         headers: {'Content-Type': 'application/json'},
         body: jsonEncode({
           "user_id": userId,
@@ -132,7 +132,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
       final userId = await AuthService.getStoredUserId();
       var request = http.MultipartRequest(
         'POST',
-        Uri.parse('http://${AuthService.serverIp}:8000/profile/avatar'),
+        Uri.parse('${AuthService.baseUrl}/profile/avatar'),
       );
       request.fields['user_id'] = userId ?? "";
       request.files.add(await http.MultipartFile.fromPath('file', image.path));

@@ -3,9 +3,9 @@ import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 
 class AuthService {
-  // Твій серверний IP
-  static const String serverIp = '172.20.10.3';
-  final String baseUrl = 'http://$serverIp:8000';
+  // 1. Зробили змінну статичною, щоб мати до неї доступ з інших файлів
+  // Render автоматично використовує HTTPS, тому порт :8000 писати НЕ ТРЕБА.
+  static const String baseUrl = 'https://fiyouai.onrender.com';
 
   // Збереження даних сесії локально
   Future<void> _saveSession(String userId, String? token) async {
@@ -26,7 +26,7 @@ class AuthService {
     return prefs.getString('access_token');
   }
 
-  // РЕЄСТРАЦІЯ (Оновлено: додано обробку токена)
+  // РЕЄСТРАЦІЯ
   Future<Map<String, dynamic>> register(
     String email,
     String password, {
@@ -39,7 +39,7 @@ class AuthService {
     };
 
     final response = await http.post(
-      Uri.parse('$baseUrl/auth/register'),
+      Uri.parse('$baseUrl/auth/register'), // Використовуємо baseUrl
       headers: {'Content-Type': 'application/json'},
       body: jsonEncode(requestBody),
     );
@@ -48,7 +48,6 @@ class AuthService {
 
     if (response.statusCode == 200) {
       if (data['user_id'] != null) {
-        // Зберігаємо ID та токен (якщо бекенд його повертає)
         await _saveSession(data['user_id'], data['access_token']);
       }
       return data;
@@ -57,21 +56,23 @@ class AuthService {
     }
   }
 
-  // Перевірка зв'язку з сервером (SplashScreen)
+  // Перевірка зв'язку з сервером
   Future<bool> checkConnection() async {
     try {
       final res = await http
-          .get(Uri.parse('$baseUrl/'))
+          .get(Uri.parse('$baseUrl/')) // Використовуємо baseUrl
           .timeout(const Duration(seconds: 3));
-      return res.statusCode == 200;
+      return res.statusCode == 200 ||
+          res.statusCode == 404; // 404 теж ок, значить сервер живий
     } catch (_) {
       return false;
     }
   }
 
+  // ВИПРАВЛЕНО: тут був хардкод з :8000
   Future<void> sendPasswordResetEmail(String email) async {
     final response = await http.post(
-      Uri.parse('http://${AuthService.serverIp}:8000/auth/reset_password'),
+      Uri.parse('$baseUrl/auth/reset_password'), // Тепер правильно
       headers: {'Content-Type': 'application/json'},
       body: jsonEncode({"email": email}),
     );
@@ -82,9 +83,10 @@ class AuthService {
     }
   }
 
+  // ВИПРАВЛЕНО: тут був хардкод з :8000
   Future<void> updateUserPassword(String newPassword) async {
     final response = await http.post(
-      Uri.parse('http://${AuthService.serverIp}:8000/auth/update_password'),
+      Uri.parse('$baseUrl/auth/update_password'), // Тепер правильно
       headers: {'Content-Type': 'application/json'},
       body: jsonEncode({"password": newPassword}),
     );
@@ -94,7 +96,7 @@ class AuthService {
     }
   }
 
-  // ВХІД (Оновлено)
+  // ВХІД
   Future<void> login(String email, String password) async {
     final res = await http.post(
       Uri.parse('$baseUrl/auth/login'),
@@ -110,9 +112,9 @@ class AuthService {
     }
   }
 
-  // ВИХІД (ПОВНЕ ОЧИЩЕННЯ)
+  // ВИХІД
   Future<void> logout() async {
     final prefs = await SharedPreferences.getInstance();
-    await prefs.clear(); // Видаляє всі ключі, щоб почати з нуля
+    await prefs.clear();
   }
 }

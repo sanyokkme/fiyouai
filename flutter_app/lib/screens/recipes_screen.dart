@@ -87,7 +87,7 @@ class _RecipesScreenState extends State<RecipesScreen> {
       final userId = await AuthService.getStoredUserId();
       final res = await http.get(
         Uri.parse(
-          'http://${AuthService.serverIp}:8000/generate_recipe/$userId',
+          '${AuthService.baseUrl}/generate_recipe/$userId',
         ),
       );
 
@@ -141,7 +141,7 @@ class _RecipesScreenState extends State<RecipesScreen> {
       };
 
       final response = await http.post(
-        Uri.parse('http://${AuthService.serverIp}:8000/save_recipe'),
+        Uri.parse('${AuthService.baseUrl}/save_recipe'),
         headers: {'Content-Type': 'application/json'},
         body: jsonEncode(body),
       );
