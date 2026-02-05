@@ -6,14 +6,11 @@ from datetime import datetime
 
 def register_user(email: str, password: str, profile_data: dict = None) -> dict:
     try:
-        # 1. Створюємо користувача в Supabase Auth
         response = supabase.auth.sign_up({"email": email, "password": password})
         
         if response.user:
             user_id = response.user.id
             
-            # 2. Якщо передані дані профілю, ми можемо обробити їх тут 
-            # (або викликати цю логіку прямо в main.py, як ми домовилися раніше)
             return {"status": "ok", "user_id": user_id}
             
         raise HTTPException(status_code=400, detail="Помилка реєстрації")
@@ -24,7 +21,6 @@ def login_user(email: str, password: str) -> dict:
     try:
         response = supabase.auth.sign_in_with_password({"email": email, "password": password})
         if response.session:
-            # Повертаємо токен та user_id для Shared Preferences на фронтенді
             return {
                 "status": "ok", 
                 "access_token": response.session.access_token,
@@ -41,13 +37,12 @@ def get_current_user(authorization: str = Header(...)) -> str:
         
     token = authorization.replace("Bearer ", "")
     try:
-        # Supabase використовує HS256 для підпису JWT
         payload = jwt.decode(
             token, 
             settings.SUPABASE_JWT_SECRET, 
             algorithms=["HS256"], 
             audience="authenticated"
         )
-        return payload["sub"] # Повертає UUID користувача
+        return payload["sub"] 
     except Exception:
         raise HTTPException(status_code=401, detail="Токен недійсний або термін дії закінчився")

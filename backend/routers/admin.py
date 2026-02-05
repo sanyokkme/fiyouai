@@ -18,12 +18,7 @@ async def admin_login_page(request: Request):
 @router.api_route("/admin/dashboard", methods=["GET", "POST"], response_class=HTMLResponse)
 async def dashboard(request: Request, username: str = Form(None), password: str = Form(None)):
     """Головна панель статистики."""
-    # Перевірка пароля (спрощена)
     is_auth = request.method == "GET" or (username == settings.ADMIN_USERNAME and password == settings.ADMIN_PASSWORD)
-    
-    # У реальному проекті тут краще використовувати cookies/session, але для сумісності лишаємо так:
-    # Якщо це GET запит - ми пускаємо (вважаємо, що користувач зайшов раніше),
-    # Якщо POST - перевіряємо пароль.
     
     if not is_auth:
         return HTMLResponse("<h1>⛔ Доступ заборонено</h1><a href='/'>Назад</a>", status_code=403)
@@ -63,15 +58,12 @@ async def dashboard(request: Request, username: str = Form(None), password: str 
     except Exception as e:
         return HTMLResponse(f"<h1>Помилка: {str(e)}</h1>", status_code=500)
 
-# --- ОСЬ ЦЕЙ ЕНДПОІНТ БУВ ВІДСУТНІЙ ---
 @router.get("/admin/users_list", response_class=HTMLResponse)
 async def admin_users_page(request: Request):
     """Сторінка списку всіх користувачів."""
     try:
-        # Отримуємо профілі з БД
         profiles_res = supabase.table("user_profiles").select("*").execute()
         
-        # Отримуємо emails з Auth
         users_auth = supabase.auth.admin.list_users()
         auth_list = users_auth.users if hasattr(users_auth, 'users') else users_auth
         emails_map = {str(u.id).strip().lower(): u.email for u in auth_list}
@@ -101,12 +93,9 @@ async def get_admin_user_details(user_id: str):
     except Exception as e:
         return {"error": str(e)}
 
-# --- КЕРУВАННЯ STORIES (НОВЕ) ---
-
 @router.get("/admin/stories", response_class=HTMLResponse)
 async def admin_stories_page(request: Request):
     try:
-        # Сортуємо по sort_order (від меншого до більшого)
         res = supabase.table('app_stories').select('*').eq('is_active', True).order('sort_order', desc=False).execute()
         stories = res.data if res.data else []
         return templates.TemplateResponse("stories_admin.html", {"request": request, "stories": stories})
@@ -117,40 +106,30 @@ async def admin_stories_page(request: Request):
 async def add_story(
     request: Request,
     title: str = Form(...),
-    image_url: str = Form(None),       # Тепер це необов'язкове
-    image_file: UploadFile = File(None) # Нове поле для файлу
+    image_url: str = Form(None),
+    image_file: UploadFile = File(None)
 ):
     """Додавання нової сторіз (через URL або Файл)."""
     final_image_url = image_url
 
     try:
-        # 1. Якщо завантажено файл - заливаємо в Supabase Storage
         if image_file and image_file.filename:
-            # Генеруємо унікальне ім'я файлу (наприклад: stories/random-uuid.jpg)
             file_ext = image_file.filename.split(".")[-1]
             file_name = f"{uuid.uuid4()}.{file_ext}"
-            file_path = f"stories/{file_name}" # Папка stories (ім'я бакета) не входить в шлях upload, тільки в from_
+            file_path = f"stories/{file_name}"
 
-            # Читаємо байти файлу
             file_content = await image_file.read()
 
-            # Завантажуємо в Supabase Storage (бакет 'stories')
-            # Важливо: content-type потрібен, щоб браузер розумів, що це картинка
             supabase.storage.from_("stories").upload(
                 file_name, 
                 file_content, 
                 {"content-type": image_file.content_type}
             )
 
-            # Отримуємо публічне посилання
-            # Увага: метод get_public_url повертає рядок
             final_image_url = supabase.storage.from_("stories").get_public_url(file_name)
 
-        # 2. Перевірка: чи є хоч якесь зображення
         if not final_image_url:
              return HTMLResponse("<h1>Помилка: Потрібно вказати посилання або завантажити файл</h1>", status_code=400)
-
-        # 3. Зберігаємо в БД
         supabase.table('app_stories').insert({
             "image_url": final_image_url,
             "title": title,
@@ -169,7 +148,6 @@ async def delete_story(
 ):
     """Видалення сторіз."""
     try:
-        # Видаляємо фізично
         supabase.table('app_stories').delete().eq('id', story_id).execute()
         return RedirectResponse(url="/admin/stories", status_code=303)
     except Exception as e:
@@ -187,7 +165,6 @@ async def edit_story(
     final_image_url = image_url
 
     try:
-        # Якщо завантажили новий файл - заливаємо
         if image_file and image_file.filename:
             file_ext = image_file.filename.split(".")[-1]
             file_name = f"{uuid.uuid4()}.{file_ext}"
@@ -197,9 +174,7 @@ async def edit_story(
             )
             final_image_url = supabase.storage.from_("stories").get_public_url(file_name)
 
-        # Формуємо дані для оновлення
         update_data = {"title": title}
-        # Оновлюємо картинку тільки якщо вона змінилась (користувач надав нову)
         if final_image_url and final_image_url.strip():
             update_data["image_url"] = final_image_url
 
@@ -218,8 +193,6 @@ async def reorder_stories(
     new_order = payload.get("order", [])
 
     try:
-        # В ідеалі це робиться одним SQL запитом або batch update,
-        # але для простоти адмінки зробимо циклом (це швидко для <50 записів)
         for index, story_id in enumerate(new_order):
             supabase.table('app_stories').update({'sort_order': index}).eq('id', story_id).execute()
 

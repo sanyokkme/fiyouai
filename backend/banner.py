@@ -8,7 +8,7 @@ def print_banner():
     console.rule("[bold green]🚀 NutritionAI Backend Started[/bold green]")
     console.print(f"App Version: [magenta]0.0.1[/magenta]")
     console.print(f"Timezone: [yellow]{POLAND_TZ}[/yellow]")
-    console.print(f"Admin Panel: [link=http://172.20.10.3:8000]http://172.20.10.3:8000[/link]")
+    console.print(f"Admin Panel: [link=https://fiyouai.onrender.com]https://fiyouai.onrender.com[/link]")
     console.rule()
 
 if __name__ == "__main__":

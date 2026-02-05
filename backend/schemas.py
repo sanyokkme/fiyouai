@@ -1,7 +1,7 @@
 from pydantic import BaseModel, Field, field_validator
 from typing import Optional, List, Union, Dict, Any
 
-# --- Response Models ---
+# Response Models
 class DailyStatusResponse(BaseModel):
     user_id: str
     name: Optional[str] = None
@@ -20,7 +20,7 @@ class DailyStatusResponse(BaseModel):
     target_f: int
     target_c: int
 
-# --- Request Models ---
+# Request Models
 
 class UserProfileSchema(BaseModel):
     name: Optional[str] = None
@@ -65,7 +65,6 @@ class WaterLogSchema(BaseModel):
 class ManualMealSchema(BaseModel):
     user_id: str
     meal_name: str = "Ручне введення"
-    # Дозволяємо різні формати на вході
     calories: Union[int, float, str] 
     protein: Union[int, float, str] = 0
     fat: Union[int, float, str] = 0
@@ -73,8 +72,6 @@ class ManualMealSchema(BaseModel):
     image_url: Optional[str] = None
     created_at: Optional[str] = None
 
-    # mode='before' означає: спершу виконай цю функцію, а потім перевіряй типи.
-    # Це дозволяє прийняти "250.5" (рядок або float) і перетворити на 250 (int).
     @field_validator('calories', mode='before')
     def round_calories(cls, v):
         if v is None:
@@ -84,7 +81,6 @@ class ManualMealSchema(BaseModel):
         except (ValueError, TypeError):
             return 0
 
-    # Додамо валідатори для макронутрієнтів, щоб вони завжди були float
     @field_validator('protein', 'fat', 'carbs', mode='before')
     def parse_float(cls, v):
         if v is None:
@@ -108,7 +104,6 @@ class SaveRecipeSchema(BaseModel):
     time: Optional[str] = "20 хв"
     image_url: Optional[str] = None 
 
-    # Тут теж корисно додати валідатор, щоб чистити дані перед збереженням
     @field_validator('calories', mode='before')
     def clean_calories(cls, v):
         if v is None: return 0

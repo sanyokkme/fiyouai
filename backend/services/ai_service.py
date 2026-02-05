@@ -6,7 +6,6 @@ import logging
 from openai import OpenAI
 from PIL import Image
 
-# Налаштуємо логування, щоб бачити помилки в консолі
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
@@ -70,14 +69,10 @@ class AIService:
                 result["calories"] = calculated_cal
                 logger.info(f"DEBUG: Калорії перераховані вручну: {calculated_cal}")
 
-            # Тут ми НЕ генеруємо нове зображення DALL-E, бо у нас вже є фото користувача.
-            # Якщо вам все ж потрібна генерація, скажіть, я додам цей код коректно.
-            
             return result
 
         except Exception as e:
             logger.error(f"Error analyzing food image: {e}")
-            # Повертаємо безпечну структуру, щоб фронтенд не впав
             return {
                 "meal_name": "Не вдалося розпізнати",
                 "calories": 0,
@@ -152,7 +147,6 @@ class AIService:
 
     def get_weekly_insights(self, history: list, target: int, goal: str):
         """Аналізує тиждень та повертає поради."""
-        # Перетворюємо history (якщо це об'єкти БД) у простий текст або dict, щоб не було помилок серіалізації
         history_str = str(history) 
 
         prompt = f"""
@@ -185,5 +179,4 @@ class AIService:
                 "tips": []
             }
 
-# Експортуємо
 ai_service_instance = AIService()

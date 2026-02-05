@@ -7,6 +7,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from rich.logging import RichHandler
 from rich.console import Console
+from banner import *
 
 # Імпорт роутерів
 from routers import auth, profile, tracking, ai, admin
@@ -50,8 +51,6 @@ async def lifespan(app: FastAPI):
     console.print(f"[bold dim green]Backend reloaded ({current_time})[/]")
 
     yield
-
-    # console.print("[dim red]Server shutting down...[/dim red]")
 
 # ІНІЦІАЛІЗАЦІЯ APP
 app = FastAPI(

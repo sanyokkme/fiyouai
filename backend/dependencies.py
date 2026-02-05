@@ -7,7 +7,7 @@ from repositories.meal_repo import MealRepository
 from services.nutrition_service import NutritionService
 
 
-# --- JWT AUTH (з твого старого auth_service.py) ---
+# JWT AUTH
 def get_current_user(authorization: str = Header(...)) -> str:
     if not authorization or not authorization.startswith("Bearer "):
         raise HTTPException(status_code=401, detail="Missing Token")
@@ -18,6 +18,6 @@ def get_current_user(authorization: str = Header(...)) -> str:
     except Exception:
         raise HTTPException(status_code=401, detail="Invalid Token")
 
-# --- DI ---
+# DI
 def get_nutrition_service():
     return NutritionService(MealRepository(supabase), UserRepository(supabase))

@@ -36,7 +36,6 @@ async def analyze_meal(file: UploadFile = File(...), user_id: str = Form(...), s
     service.meal_repo.add_meal(db_data)
     return db_data
 
-# --- ОСЬ ЦЕЙ ЕНДПОІНТ БУВ ВІДСУТНІЙ ---
 @router.post("/analyze_image")
 async def analyze_image_only(user_id: str = Form(...), file: UploadFile = File(...)):
     """Тільки аналізує фото (для прев'ю), нічого не зберігає в БД."""
@@ -44,10 +43,8 @@ async def analyze_image_only(user_id: str = Form(...), file: UploadFile = File(.
         contents = await file.read()
         img = Image.open(io.BytesIO(contents)).convert("RGB")
         
-        # Викликаємо AI сервіс
         result = ai_service_instance.get_calories_from_image(img)
         
-        # Логуємо для відладки
         print(f"AI Result: {json.dumps(result, indent=2, ensure_ascii=False)}")
         
         return result

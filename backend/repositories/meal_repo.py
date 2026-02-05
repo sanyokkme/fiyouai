@@ -2,7 +2,6 @@ from supabase import Client
 
 class MealRepository:
     def __init__(self, client: Client):
-        # Змінили self.db на self.supabase
         self.supabase = client
 
     def get_meals_from_date(self, user_id: str, date_from: str):

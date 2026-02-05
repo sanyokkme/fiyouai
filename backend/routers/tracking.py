@@ -100,17 +100,14 @@ async def add_manual_meal(meal: ManualMealSchema, service: NutritionService = De
     Додає продукт, вибраний через пошук або введений вручну.
     """
     try:
-        # Формуємо словник для запису в БД
-        # Важливо: імена ключів мають збігатися з колонками в таблиці meal_history
         meal_data = {
             "user_id": meal.user_id,
-            "meal_name": meal.meal_name, # Або просто "name", перевір як в БД
+            "meal_name": meal.meal_name, 
             "calories": meal.calories,
             "protein": meal.protein,
             "fat": meal.fat,
             "carbs": meal.carbs,
             "created_at": meal.created_at,
-            # Якщо є картинка - додаємо, якщо ні - ставимо заглушку або None
             "image_url": meal.image_url 
         }
 
@@ -132,8 +129,6 @@ async def search_food(query: str = Query(..., min_length=1)):
     # --- 1. Функція для локального пошуку (Supabase) ---
     async def search_local():
         try:
-            # Supabase клієнт синхронний, тому загортаємо в потік, щоб не блокувати
-            # Якщо у тебе async клієнт supabase, to_thread не потрібен
             res = await asyncio.to_thread(
                 lambda: supabase.table('food_products')
                 .select('*')
@@ -151,7 +146,7 @@ async def search_food(query: str = Query(..., min_length=1)):
             print(f"Local DB Error: {e}")
             return []
 
-    # --- 2. Функція для глобального пошуку (OpenFoodFacts) ---
+    # 2. Функція для глобального пошуку (OpenFoodFacts)
     async def search_global():
         url = "https://world.openfoodfacts.org/cgi/search.pl"
         params = {
@@ -163,10 +158,8 @@ async def search_food(query: str = Query(..., min_length=1)):
             "fields": "product_name,product_name_uk,product_name_pl,nutriments,brands"
         }
         
-        # Використовуємо AsyncClient замість requests!
         async with httpx.AsyncClient() as client:
             try:
-                # Таймаут збільшено до 6 секунд
                 resp = await client.get(url, params=params, timeout=6.0)
                 
                 if resp.status_code != 200:
@@ -205,9 +198,7 @@ async def search_food(query: str = Query(..., min_length=1)):
                 print(f"Global Search Error: {e}")
                 return []
 
-    # --- 3. ЗАПУСКАЄМО ОБИДВА ПОШУКИ ОДНОЧАСНО ---
-    # Це магія asyncio.gather - чекаємо завершення обох
+    # 3. ЗАПУСКАЄМО ОБИДВА ПОШУКИ ОДНОЧАСНО
     local_results, global_results = await asyncio.gather(search_local(), search_global())
     
-    # Об'єднуємо: спочатку локальні (швидкі/надійні), потім глобальні
     return local_results + global_results

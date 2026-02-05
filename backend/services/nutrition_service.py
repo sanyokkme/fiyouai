@@ -11,7 +11,6 @@ class NutritionService:
     def calculate_bmr_tdee(self, weight: float, height: float, age: int, gender: str, activity_level: str) -> float:
         """Розрахунок базового метаболізму та TDEE."""
         # Mifflin-St Jeor Formula
-        # ВИПРАВЛЕНО: тут була помилка в слові weight
         bmr = (10 * weight) + (6.25 * height) - (5 * age)
         bmr = (bmr + 5) if gender == "Чоловік" else (bmr - 161)
         
@@ -58,12 +57,10 @@ class NutritionService:
         meals = self.meal_repo.get_meals_from_date(user_id, today).data or []
         water = self.meal_repo.get_water_logs(user_id, today).data or []
 
-        # Беремо ціль з профілю, або 2000 за замовчуванням
         target = max(1200, int(prof.get("daily_calories_target", 2000)))
         eaten = sum(clean_to_int(m.get('calories', 0)) for m in meals)
 
         try:
-            # Викликаємо метод репозиторію замість прямого доступу
             stories_response = self.meal_repo.get_stories()
             stories = stories_response.data if stories_response.data else []
         except Exception as e:
@@ -72,11 +69,10 @@ class NutritionService:
         
         macros = self.calculate_macros(target)
 
-        # ФОРМУЄМО ВІДПОВІДЬ З ІМЕНЕМ
         return {
             "user_id": user_id,
-            "name": prof.get("name"),  # <--- ДОДАНО: Ім'я з БД
-            "username": prof.get("username", "Користувач"), # <--- ДОДАНО: Юзернейм як резерв
+            "name": prof.get("name"),  
+            "username": prof.get("username", "Користувач"), 
             "eaten": eaten, 
             "target": target, 
             "remaining": max(0, target - eaten),
