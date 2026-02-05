@@ -8,6 +8,10 @@ from fastapi.responses import JSONResponse
 from rich.logging import RichHandler
 from rich.console import Console
 from banner import *
+import os
+from dotenv import load_dotenv
+
+load_dotenv()
 
 # Імпорт роутерів
 from routers import auth, profile, tracking, ai, admin

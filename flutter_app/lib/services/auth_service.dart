@@ -1,12 +1,24 @@
 import 'dart:convert';
 import 'package:http/http.dart' as http;
+import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 class AuthService {
   // 1. Зробили змінну статичною, щоб мати до неї доступ з інших файлів
-  // Render автоматично використовує HTTPS, тому порт :8000 писати НЕ ТРЕБА.
-  static const String baseUrl = 'https://fiyouai.onrender.com';
+  static const String _prodUrl = 'https://fiyouai.onrender.com';
 
+  static const String _devUrl = 'http://http://172.20.10.3:8000';
+
+  // 3. Розумний геттер
+  static String get baseUrl {
+    if (kDebugMode) {
+      // Якщо ми запустили через "Run" у VS Code/Xcode
+      return _devUrl;
+    } else {
+      // Якщо це Release версія (TestFlight / App Store)
+      return _prodUrl;
+    }
+  }
   // Збереження даних сесії локально
   Future<void> _saveSession(String userId, String? token) async {
     final prefs = await SharedPreferences.getInstance();
