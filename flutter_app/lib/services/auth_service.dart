@@ -7,15 +7,17 @@ class AuthService {
   // 1. Зробили змінну статичною, щоб мати до неї доступ з інших файлів
   static const String _prodUrl = 'https://fiyouai.onrender.com';
 
-  static const String _devUrl = 'http://http://172.20.10.3:8000';
+  static const String _devUrl = 'http://172.20.10.3:8000';
 
   // 3. Розумний геттер
   static String get baseUrl {
     if (kDebugMode) {
       // Якщо ми запустили через "Run" у VS Code/Xcode
+      print("DEBUG MODE");
       return _devUrl;
     } else {
       // Якщо це Release версія (TestFlight / App Store)
+      print("RELEASE MODE");
       return _prodUrl;
     }
   }
