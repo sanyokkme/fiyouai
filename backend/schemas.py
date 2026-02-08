@@ -45,17 +45,19 @@ class PasswordResetSchema(BaseModel):
 
 class ProfileUpdateSchema(BaseModel):
     user_id: str
-    field: str
+    field: Optional[str] = "weight"
     value: Union[str, int, float]
 
 class ProfileSetupSchema(BaseModel):
     id: str
     name: str
-    weight: int
+    weight: float  # Змінено з int
     height: int
     age: int
     gender: str
     goal: str
+    activity: str  # ✅ ДОДАНО
+    dob: str       # Якщо потрібно
 
 class WaterLogSchema(BaseModel):
     user_id: str
@@ -116,3 +118,15 @@ class AddFromRecipeSchema(BaseModel):
 
 class UpdatePasswordSchema(BaseModel):
     password: str
+
+class VitaminSchema(BaseModel):
+    user_id: str
+    name: str
+    description: Optional[str] = None
+    brand: Optional[str] = None
+    type: str  # pill, capsule, etc.
+    frequency_type: str # every_day, interval, week_days
+    frequency_data: Optional[str] = None # "2" or "1,3,5"
+    start_date: str # ISO format string
+    duration_days: Optional[int] = None
+    schedules: List[Dict[str, Any]] # [{"time": "08:00", "dose": "1 шт"}]

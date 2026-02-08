@@ -90,21 +90,84 @@ class NutritionService:
         }
 
     def get_weekly_analytics(self, user_id: str):
-        """Повертає статистику калорій за останні 7 днів."""
+        """Повертає статистику всіх метрик за останні 7 днів."""
         week_ago = (get_now_poland().replace(hour=0, minute=0, second=0, microsecond=0) - timedelta(days=7)).isoformat()
         
-        res = self.meal_repo.get_meals_from_date(user_id, week_ago)
-        data = res.data or []
+        # Отримуємо страви та воду за тиждень
+        print(f"DEBUG: Fetching analytics for user: {user_id}")
+        print(f"DEBUG: Date from (week_ago): {week_ago}")
         
+        meals_res = self.meal_repo.get_meals_from_date(user_id, week_ago)
+        water_res = self.meal_repo.get_water_logs(user_id, week_ago)
+        
+        if meals_res.data:
+            print(f"DEBUG: Found {len(meals_res.data)} meals")
+        else:
+            print(f"DEBUG: NO MEALS FOUND via query: user_id={user_id}, created_at >= {week_ago}")
+            
+            # --- DEBUG CHECK: Check if ANY meals exist for this user ---
+            try:
+                all_meals = self.meal_repo.supabase.table("meal_history").select("count").eq("user_id", user_id).execute()
+                print(f"DEBUG: Total meals for this user (all time): {all_meals.data}")
+            except Exception as e:
+                print(f"DEBUG: Check failed: {e}")
+            # -----------------------------------------------------------
+
+        meals_data = meals_res.data or []
+        water_data = water_res.data or []
+        
+        # Агрегація по днях
         stats = {}
         from utils import safe_parse_datetime 
         
-        for entry in data:
+        # Обробка страв (калорії, білки, жири, вуглеводи)
+        for entry in meals_data:
             dt = safe_parse_datetime(entry['created_at'])
             day = dt.date().isoformat()
-            stats[day] = stats.get(day, 0) + clean_to_int(entry['calories'])
             
-        return [{"day": k, "value": v} for k, v in sorted(stats.items())]
+            if day not in stats:
+                stats[day] = {
+                    "calories": 0,
+                    "protein": 0,
+                    "fat": 0,
+                    "carbs": 0,
+                    "water": 0
+                }
+            
+            stats[day]["calories"] += clean_to_int(entry.get('calories', 0))
+            stats[day]["protein"] += clean_to_float(entry.get('protein', 0))
+            stats[day]["fat"] += clean_to_float(entry.get('fat', 0))
+            stats[day]["carbs"] += clean_to_float(entry.get('carbs', 0))
+        
+        # Обробка води
+        for entry in water_data:
+            dt = safe_parse_datetime(entry['created_at'])
+            day = dt.date().isoformat()
+            
+            if day not in stats:
+                stats[day] = {
+                    "calories": 0,
+                    "protein": 0,
+                    "fat": 0,
+                    "carbs": 0,
+                    "water": 0
+                }
+            
+            stats[day]["water"] += entry.get('amount', 0)
+        
+        # Форматуємо результат
+        result = []
+        for day, metrics in sorted(stats.items()):
+            result.append({
+                "day": day,
+                "calories": metrics["calories"],
+                "protein": round(metrics["protein"], 1),
+                "fat": round(metrics["fat"], 1),
+                "carbs": round(metrics["carbs"], 1),
+                "water": metrics["water"]
+            })
+        
+        return result
         
     def get_data_for_tips(self, user_id: str):
         """Збирає дані (історія + профіль) для генерації порад."""

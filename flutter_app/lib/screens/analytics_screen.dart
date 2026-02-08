@@ -3,6 +3,7 @@ import 'package:fl_chart/fl_chart.dart';
 import 'package:shimmer/shimmer.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../services/auth_service.dart';
+import '../constants/app_colors.dart';
 import 'dart:convert';
 import 'package:http/http.dart' as http;
 import 'package:intl/intl.dart';
@@ -20,11 +21,50 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
   bool _isLoading = true;
   int _avgCalories = 0;
   String? _aiSummary;
+  bool _isBarChart = true;
+
+  // PageView controller for swiping charts
+  late PageController _pageController;
+  int _currentIndex = 0;
+
+  // Ordered list of metrics to display
+  final List<String> _orderedMetrics = [
+    'calories',
+    'water',
+    'protein',
+    'fat',
+    'carbs',
+  ];
+
+  // Colors for each metric
+  final Map<String, Color> _metricColors = {
+    'calories': AppColors.primaryColor,
+    'water': Colors.cyanAccent,
+    'protein': Colors.blueAccent,
+    'fat': Colors.orangeAccent,
+    'carbs': Colors.purpleAccent,
+  };
+
+  // Metric names in Ukrainian
+  final Map<String, String> _metricNames = {
+    'calories': 'Калорії',
+    'water': 'Вода',
+    'protein': 'Білки',
+    'fat': 'Жири',
+    'carbs': 'Вуглеводи',
+  };
 
   @override
   void initState() {
     super.initState();
+    _pageController = PageController();
     _fetchFullAnalytics();
+  }
+
+  @override
+  void dispose() {
+    _pageController.dispose();
+    super.dispose();
   }
 
   Future<void> _fetchFullAnalytics() async {
@@ -32,31 +72,18 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
     final userId = await AuthService.getStoredUserId();
     if (userId == null) return;
 
-    // --- 1. СПРОБА ЗАВАНТАЖИТИ З КЕШУ (МИТТЄВО) ---
-    final cachedStatus = prefs.getString('cache_analytics_status_$userId');
-    final cachedHistory = prefs.getString('cache_analytics_history_$userId');
-    final cachedTips = prefs.getString('cache_analytics_tips_$userId');
-
-    if (cachedStatus != null && cachedHistory != null) {
-      _processData(
-        jsonDecode(cachedStatus),
-        jsonDecode(cachedHistory),
-        cachedTips != null ? jsonDecode(cachedTips) : null,
-      );
-    }
+    // Очищуємо старий кеш після оновлення бекенду
+    await prefs.remove('cache_analytics_status_$userId');
+    await prefs.remove('cache_analytics_history_$userId');
+    await prefs.remove('cache_analytics_tips_$userId');
 
     try {
-      // --- 2. ЗАПИТ НА СЕРВЕР (У ФОНІ) ---
+      // --- ЗАПИТ НА СЕРВЕР ---
+      print('DEBUG: App Fetching Analytics for UserID: $userId');
       final responses = await Future.wait([
-        http.get(
-          Uri.parse('${AuthService.baseUrl}/user_status/$userId'),
-        ),
-        http.get(
-          Uri.parse('${AuthService.baseUrl}/analytics/$userId'),
-        ),
-        http.get(
-          Uri.parse('${AuthService.baseUrl}/get_tips/$userId'),
-        ),
+        http.get(Uri.parse('${AuthService.baseUrl}/user_status/$userId')),
+        http.get(Uri.parse('${AuthService.baseUrl}/analytics/$userId')),
+        http.get(Uri.parse('${AuthService.baseUrl}/get_tips/$userId')),
       ]);
 
       if (responses[0].statusCode == 200 && responses[1].statusCode == 200) {
@@ -84,6 +111,7 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
         );
       }
     } catch (e) {
+      print('Analytics error: $e');
       if (mounted && _chartData.isEmpty) setState(() => _isLoading = false);
     }
   }
@@ -93,20 +121,27 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
     List historyList,
     Map<String, dynamic>? aiData,
   ) {
+    print('📊 Analytics: Processing data...');
+    print('  History items: ${historyList.length}');
+    print('  Raw history: $historyList');
+
     // 1. Заповнюємо пропуски
     final filledData = _fillMissingDays(historyList);
+    print('  Filled days: ${filledData.length}');
+    print('  Chart data sample: ${filledData.take(2)}');
 
-    // 2. Рахуємо середнє
+    // 2. Рахуємо середнє калорій
     int total = 0;
     int activeDays = 0;
     for (var item in historyList) {
-      int val = (item['value'] as num).toInt();
+      int val = (item['calories'] as num?)?.toInt() ?? 0;
       if (val > 0) {
         total += val;
         activeDays++;
       }
     }
     int avg = activeDays > 0 ? (total / activeDays).round() : 0;
+    print('  Average calories: $avg from $activeDays active days');
 
     // 3. AI
     String aiText = "Аналізуємо ваші дані...";
@@ -128,19 +163,37 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
   List<Map<String, dynamic>> _fillMissingDays(List rawData) {
     List<Map<String, dynamic>> result = [];
     DateTime today = DateTime.now();
-    Map<String, int> dataMap = {};
+
+    // Створюємо Map з усіма метриками по днях
+    Map<String, Map<String, dynamic>> dataMap = {};
 
     for (var item in rawData) {
-      dataMap[item['day']] = (item['value'] as num).toInt();
+      dataMap[item['day']] = {
+        'calories': (item['calories'] as num?)?.toInt() ?? 0,
+        'water': (item['water'] as num?)?.toInt() ?? 0,
+        'protein': (item['protein'] as num?)?.toDouble() ?? 0.0,
+        'fat': (item['fat'] as num?)?.toDouble() ?? 0.0,
+        'carbs': (item['carbs'] as num?)?.toDouble() ?? 0.0,
+      };
     }
 
+    // Заповнюємо всі 7 днів (включно з пропущеними)
     for (int i = 6; i >= 0; i--) {
       DateTime date = today.subtract(Duration(days: i));
       String dateKey = DateFormat('yyyy-MM-dd').format(date);
+
+      final metrics =
+          dataMap[dateKey] ??
+          {'calories': 0, 'water': 0, 'protein': 0.0, 'fat': 0.0, 'carbs': 0.0};
+
       result.add({
         'day': dateKey,
-        'value': dataMap[dateKey] ?? 0,
         'dateObj': date,
+        'calories': metrics['calories'],
+        'water': metrics['water'],
+        'protein': metrics['protein'],
+        'fat': metrics['fat'],
+        'carbs': metrics['carbs'],
       });
     }
     return result;
@@ -153,148 +206,271 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
 
   // --- SKELETON LOADER ---
   Widget _buildSkeleton() {
-    return Shimmer.fromColors(
-      baseColor: Colors.white.withValues(alpha: 0.05),
-      highlightColor: Colors.white.withValues(alpha: 0.1),
-      child: Padding(
-        padding: const EdgeInsets.all(20),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Padding(
+          padding: const EdgeInsets.fromLTRB(25, 20, 25, 10),
+          child: Row(
+            children: [
+              IconButton(
+                icon: const Icon(
+                  Icons.arrow_back_ios,
+                  color: Colors.white,
+                  size: 20,
+                ),
+                onPressed: () => Navigator.pop(context),
+              ),
+              const Text(
+                'Аналітика',
+                style: TextStyle(
+                  fontSize: 32,
+                  fontWeight: FontWeight.bold,
+                  color: Colors.white,
+                ),
+              ),
+            ],
+          ),
+        ),
+        Expanded(
+          child: Shimmer.fromColors(
+            baseColor: Colors.white.withValues(alpha: 0.05),
+            highlightColor: Colors.white.withValues(alpha: 0.1),
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  // Summary cards (Середнє + Ціль)
+                  Row(
+                    children: [
+                      Expanded(
+                        child: Container(
+                          height: 80,
+                          decoration: BoxDecoration(
+                            color: Colors.black,
+                            borderRadius: BorderRadius.circular(16),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Container(
+                          height: 80,
+                          decoration: BoxDecoration(
+                            color: Colors.black,
+                            borderRadius: BorderRadius.circular(16),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 25),
+                  // Header: "Деталі раціону (сьогодні)"
+                  Container(
+                    width: 220,
+                    height: 18,
+                    decoration: BoxDecoration(
+                      color: Colors.black,
+                      borderRadius: BorderRadius.circular(4),
+                    ),
+                  ),
+                  const SizedBox(height: 15),
+                  // Macros detail card with 3 progress bars
+                  Container(
+                    height: 240,
+                    padding: const EdgeInsets.all(25),
+                    decoration: BoxDecoration(
+                      color: Colors.black,
+                      borderRadius: BorderRadius.circular(24),
+                    ),
+                    child: Column(
+                      children: [
+                        _buildSkeletonProgressBar(),
+                        const SizedBox(height: 25),
+                        _buildSkeletonProgressBar(),
+                        const SizedBox(height: 25),
+                        _buildSkeletonProgressBar(),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 25),
+                  // Header: "Динаміка за 7 днів"
+                  Container(
+                    width: 180,
+                    height: 18,
+                    decoration: BoxDecoration(
+                      color: Colors.black,
+                      borderRadius: BorderRadius.circular(4),
+                    ),
+                  ),
+                  const SizedBox(height: 15),
+                  // Metric selector chips
+                  Row(
+                    children: List.generate(
+                      5,
+                      (index) => Padding(
+                        padding: const EdgeInsets.only(right: 8.0),
+                        child: Container(
+                          width: 90,
+                          height: 32,
+                          decoration: BoxDecoration(
+                            color: Colors.black,
+                            borderRadius: BorderRadius.circular(16),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 15),
+                  // Chart card
+                  Container(
+                    height: 400,
+                    decoration: BoxDecoration(
+                      color: Colors.black,
+                      borderRadius: BorderRadius.circular(24),
+                    ),
+                  ),
+                  const SizedBox(height: 25),
+                  // AI Summary card placeholder
+                  Container(
+                    height: 140,
+                    decoration: BoxDecoration(
+                      color: Colors.black,
+                      borderRadius: BorderRadius.circular(24),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildSkeletonProgressBar() {
+    return Column(
+      children: [
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
-            Row(
-              children: [
-                Expanded(
-                  child: Container(
-                    height: 80,
-                    decoration: BoxDecoration(
-                      color: Colors.black,
-                      borderRadius: BorderRadius.circular(16),
-                    ),
-                  ),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Container(
-                    height: 80,
-                    decoration: BoxDecoration(
-                      color: Colors.black,
-                      borderRadius: BorderRadius.circular(16),
-                    ),
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 30),
             Container(
-              width: 200,
-              height: 20,
+              width: 60,
+              height: 14,
               decoration: BoxDecoration(
-                color: Colors.black,
+                color: Colors.white.withValues(alpha: 0.1),
                 borderRadius: BorderRadius.circular(4),
               ),
             ),
-            const SizedBox(height: 15),
             Container(
-              height: 150,
+              width: 80,
+              height: 14,
               decoration: BoxDecoration(
-                color: Colors.black,
-                borderRadius: BorderRadius.circular(24),
-              ),
-            ),
-            const SizedBox(height: 30),
-            Container(
-              width: 150,
-              height: 20,
-              decoration: BoxDecoration(
-                color: Colors.black,
+                color: Colors.white.withValues(alpha: 0.1),
                 borderRadius: BorderRadius.circular(4),
-              ),
-            ),
-            const SizedBox(height: 15),
-            Container(
-              height: 300,
-              decoration: BoxDecoration(
-                color: Colors.black,
-                borderRadius: BorderRadius.circular(24),
               ),
             ),
           ],
         ),
-      ),
+        const SizedBox(height: 10),
+        Container(
+          height: 12,
+          width: double.infinity,
+          decoration: BoxDecoration(
+            color: Colors.white.withValues(alpha: 0.1),
+            borderRadius: BorderRadius.circular(6),
+          ),
+        ),
+      ],
     );
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFF0F0F0F),
-      appBar: AppBar(
-        title: const Text(
-          "Аналітика",
-          style: TextStyle(fontWeight: FontWeight.bold),
-        ),
-        backgroundColor: Colors.transparent,
-        elevation: 0,
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back_ios, color: Colors.white),
-          onPressed: () => Navigator.pop(context),
-        ),
-      ),
-      body: Container(
-        decoration: const BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topCenter,
-            end: Alignment.bottomCenter,
-            colors: [Color(0xFF1A1A1A), Color(0xFF0F0F0F)],
-          ),
-        ),
-        // Якщо завантаження і немає даних - показуємо скелетон
-        child: _isLoading && _chartData.isEmpty
-            ? _buildSkeleton()
-            : RefreshIndicator(
-                onRefresh: _fetchFullAnalytics,
-                color: Colors.greenAccent,
-                child: SingleChildScrollView(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 20,
-                    vertical: 10,
-                  ),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      _buildSummaryCards(),
-                      const SizedBox(height: 25),
+      backgroundColor: AppColors.backgroundDark,
+      body: AppColors.buildBackgroundWithBlurSpots(
+        child: SafeArea(
+          child: _isLoading && _chartData.isEmpty
+              ? _buildSkeleton()
+              : Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(25, 20, 25, 10),
+                      child: Row(
+                        children: [
+                          IconButton(
+                            icon: const Icon(
+                              Icons.arrow_back_ios,
+                              color: Colors.white,
+                              size: 20,
+                            ),
+                            onPressed: () => Navigator.pop(context),
+                          ),
+                          const Text(
+                            'Аналітика',
+                            style: TextStyle(
+                              fontSize: 32,
+                              fontWeight: FontWeight.bold,
+                              color: Colors.white,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    Expanded(
+                      child: RefreshIndicator(
+                        onRefresh: _fetchFullAnalytics,
+                        color: AppColors.primaryColor,
+                        child: SingleChildScrollView(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 20,
+                            vertical: 10,
+                          ),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              _buildSummaryCards(),
+                              const SizedBox(height: 25),
 
-                      const Text(
-                        "Деталі раціону (сьогодні)",
-                        style: TextStyle(
-                          color: Colors.white,
-                          fontSize: 18,
-                          fontWeight: FontWeight.bold,
+                              const Text(
+                                "Деталі раціону (сьогодні)",
+                                style: TextStyle(
+                                  color: Colors.white,
+                                  fontSize: 18,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                              const SizedBox(height: 15),
+                              _buildMacrosDetailCard(),
+
+                              const SizedBox(height: 25),
+                              const Text(
+                                "Динаміка за 7 днів",
+                                style: TextStyle(
+                                  color: Colors.white,
+                                  fontSize: 18,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                              const SizedBox(height: 15),
+                              _buildMetricSelector(),
+                              const SizedBox(height: 15),
+                              _buildChartCard(),
+
+                              const SizedBox(height: 25),
+                              if (_aiSummary != null) _buildAiSummaryCard(),
+                              const SizedBox(height: 40),
+                            ],
+                          ),
                         ),
                       ),
-                      const SizedBox(height: 15),
-                      _buildMacrosDetailCard(),
-
-                      const SizedBox(height: 25),
-                      const Text(
-                        "Динаміка за 7 днів",
-                        style: TextStyle(
-                          color: Colors.white,
-                          fontSize: 18,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                      const SizedBox(height: 15),
-                      _buildChartCard(),
-
-                      const SizedBox(height: 25),
-                      if (_aiSummary != null) _buildAiSummaryCard(),
-                      const SizedBox(height: 40),
-                    ],
-                  ),
+                    ),
+                  ],
                 ),
-              ),
+        ),
       ),
     );
   }
@@ -318,7 +494,7 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
             "${_data['target'] ?? 2000}",
             "ккал",
             Icons.flag,
-            Colors.greenAccent,
+            AppColors.primaryColor,
           ),
         ),
       ],
@@ -386,161 +562,488 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
     );
   }
 
-  Widget _buildChartCard() {
-    final double target = (_data['target'] ?? 2000).toDouble();
+  Widget _buildMetricSelector() {
+    return SingleChildScrollView(
+      scrollDirection: Axis.horizontal,
+      child: Row(
+        children: _orderedMetrics.asMap().entries.map((entry) {
+          final int index = entry.key;
+          final String metric = entry.value;
+          return Padding(
+            padding: const EdgeInsets.only(right: 8.0),
+            child: _buildMetricChip(metric, index),
+          );
+        }).toList(),
+      ),
+    );
+  }
 
+  Widget _buildMetricChip(String metric, int index) {
+    final bool isSelected = _currentIndex == index;
+    final Color color = _metricColors[metric]!;
+    final String name = _metricNames[metric]!;
+
+    final Map<String, IconData> icons = {
+      'calories': Icons.local_fire_department,
+      'water': Icons.water_drop,
+      'protein': Icons.egg,
+      'fat': Icons.opacity,
+      'carbs': Icons.rice_bowl,
+    };
+
+    return ChoiceChip(
+      selected: isSelected,
+      label: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(
+            icons[metric]!,
+            size: 16,
+            color: isSelected ? Colors.black : color,
+          ),
+          const SizedBox(width: 6),
+          Text(name),
+        ],
+      ),
+      onSelected: (bool selected) {
+        if (selected) {
+          _pageController.animateToPage(
+            index,
+            duration: const Duration(milliseconds: 300),
+            curve: Curves.easeInOut,
+          );
+        }
+      },
+      selectedColor: color,
+      backgroundColor: Colors.white.withValues(alpha: 0.05),
+      labelStyle: TextStyle(
+        color: isSelected ? Colors.black : Colors.white,
+        fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+        fontSize: 13,
+      ),
+      side: BorderSide(
+        color: isSelected ? color : color.withValues(alpha: 0.3),
+        width: 1.5,
+      ),
+      showCheckmark: false,
+    );
+  }
+
+  Widget _buildChartCard() {
     return Container(
-      height: 350,
-      padding: const EdgeInsets.fromLTRB(10, 35, 20, 10),
+      height: 400,
+      padding: const EdgeInsets.fromLTRB(10, 15, 20, 10),
       decoration: BoxDecoration(
         color: const Color(0xFF151515),
         borderRadius: BorderRadius.circular(24),
         border: Border.all(color: Colors.white10),
       ),
-      child: BarChart(
-        BarChartData(
-          alignment: BarChartAlignment.spaceAround,
-          maxY: _calculateMaxY(target),
-          barTouchData: BarTouchData(enabled: false),
-          titlesData: FlTitlesData(
-            show: true,
-            rightTitles: const AxisTitles(
-              sideTitles: SideTitles(showTitles: false),
-            ),
-            leftTitles: const AxisTitles(
-              sideTitles: SideTitles(showTitles: false),
-            ),
-            topTitles: AxisTitles(
-              sideTitles: SideTitles(
-                showTitles: true,
-                reservedSize: 30,
-                getTitlesWidget: (value, meta) {
-                  int index = value.toInt();
-                  if (index >= 0 && index < _chartData.length) {
-                    int val = _chartData[index]['value'];
-                    if (val == 0) return const SizedBox.shrink();
-                    return Center(
-                      child: Text(
-                        "$val",
-                        style: const TextStyle(
-                          color: Colors.white70,
-                          fontSize: 10,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                    );
-                  }
-                  return const SizedBox.shrink();
-                },
-              ),
-            ),
-            bottomTitles: AxisTitles(
-              sideTitles: SideTitles(
-                showTitles: true,
-                getTitlesWidget: (value, meta) {
-                  int index = value.toInt();
-                  if (index >= 0 && index < _chartData.length) {
-                    DateTime date = _chartData[index]['dateObj'];
-                    bool isToday =
-                        date.day == DateTime.now().day &&
-                        date.month == DateTime.now().month;
-                    return Padding(
-                      padding: const EdgeInsets.only(top: 8.0),
-                      child: Text(
-                        _getDayName(date),
-                        style: TextStyle(
-                          color: isToday ? Colors.white : Colors.white38,
-                          fontSize: 12,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                    );
-                  }
-                  return const SizedBox.shrink();
-                },
-                reservedSize: 30,
-              ),
-            ),
-          ),
-          gridData: FlGridData(
-            show: true,
-            drawVerticalLine: false,
-            horizontalInterval: 500,
-            getDrawingHorizontalLine: (value) =>
-                FlLine(color: Colors.white.withValues(alpha: 0.05), strokeWidth: 1),
-          ),
-          borderData: FlBorderData(show: false),
-          barGroups: _chartData.asMap().entries.map((e) {
-            final double value = (e.value['value'] as int).toDouble();
-            final bool isOverTarget = value > target;
-            final bool isZero = value == 0;
-
-            return BarChartGroupData(
-              x: e.key,
-              barRods: [
-                BarChartRodData(
-                  toY: value,
-                  gradient: isZero
-                      ? null
-                      : LinearGradient(
-                          begin: Alignment.bottomCenter,
-                          end: Alignment.topCenter,
-                          colors: isOverTarget
-                              ? [
-                                  Colors.orange.withValues(alpha: 0.8),
-                                  Colors.redAccent,
-                                ]
-                              : [
-                                  Colors.tealAccent.withValues(alpha: 0.8),
-                                  Colors.greenAccent,
-                                ],
-                        ),
-                  width: 16,
-                  borderRadius: const BorderRadius.vertical(
-                    top: Radius.circular(6),
-                  ),
-                  backDrawRodData: BackgroundBarChartRodData(
-                    show: !isZero,
-                    toY: target * 1.25,
-                    color: Colors.white.withValues(alpha: 0.02),
-                  ),
-                ),
-              ],
-            );
-          }).toList(),
-          extraLinesData: ExtraLinesData(
-            horizontalLines: [
-              HorizontalLine(
-                y: target,
-                color: Colors.white.withValues(alpha: 0.5),
-                strokeWidth: 1,
-                dashArray: [5, 5],
-                label: HorizontalLineLabel(
-                  show: true,
-                  alignment: Alignment.topRight,
-                  padding: const EdgeInsets.only(right: 5, bottom: 5),
-                  labelResolver: (line) => "Ціль: ${target.toInt()}",
+      child: Column(
+        children: [
+          Padding(
+            padding: const EdgeInsets.only(bottom: 10, left: 10, right: 0),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text(
+                  _metricNames[_orderedMetrics[_currentIndex]] ?? "Графік",
                   style: const TextStyle(
-                    color: Colors.white70,
-                    fontSize: 10,
+                    color: Colors.white,
+                    fontSize: 16,
                     fontWeight: FontWeight.bold,
                   ),
                 ),
-              ),
-            ],
+                Container(
+                  padding: const EdgeInsets.all(2),
+                  decoration: BoxDecoration(
+                    color: Colors.white.withValues(alpha: 0.1),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      _buildChartTypeBtn(Icons.bar_chart, true),
+                      _buildChartTypeBtn(Icons.show_chart, false),
+                    ],
+                  ),
+                ),
+              ],
+            ),
           ),
+          Expanded(
+            child: PageView.builder(
+              controller: _pageController,
+              onPageChanged: (index) {
+                setState(() => _currentIndex = index);
+              },
+              itemCount: _orderedMetrics.length,
+              itemBuilder: (context, index) {
+                final metric = _orderedMetrics[index];
+                return Padding(
+                  padding: const EdgeInsets.only(top: 10),
+                  child: _buildSingleChart(metric),
+                );
+              },
+            ),
+          ),
+          const SizedBox(height: 10),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: List.generate(_orderedMetrics.length, (index) {
+              return AnimatedContainer(
+                duration: const Duration(milliseconds: 300),
+                margin: const EdgeInsets.symmetric(horizontal: 4),
+                height: 6,
+                width: _currentIndex == index ? 24 : 6,
+                decoration: BoxDecoration(
+                  color: _currentIndex == index
+                      ? _metricColors[_orderedMetrics[index]]
+                      : Colors.white24,
+                  borderRadius: BorderRadius.circular(3),
+                ),
+              );
+            }),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildSingleChart(String metric) {
+    final double maxY = _calculateDynamicMaxY(metric);
+    final double interval = _calculateGridInterval(maxY);
+
+    // Determine target based on metric
+    double target = 0;
+    switch (metric) {
+      case 'calories':
+        target = (_data['target'] ?? 2000).toDouble();
+        break;
+      case 'water':
+        target = (_data['water_target'] ?? 2000).toDouble();
+        break;
+      case 'protein':
+        target = (_data['target_p'] ?? 150).toDouble();
+        break;
+      case 'fat':
+        target = (_data['target_f'] ?? 80).toDouble();
+        break;
+      case 'carbs':
+        target = (_data['target_c'] ?? 250).toDouble();
+        break;
+    }
+
+    // Common Horizontal Line definition
+    final targetLine = HorizontalLine(
+      y: target,
+      color: Colors.white.withValues(alpha: 0.5),
+      strokeWidth: 1,
+      dashArray: [5, 5],
+      label: HorizontalLineLabel(
+        show: true,
+        alignment: Alignment.topRight,
+        padding: const EdgeInsets.only(right: 5, bottom: 5),
+        labelResolver: (_) => "Ціль: ${target.toInt()}",
+        style: const TextStyle(
+          color: Colors.white,
+          fontSize: 10,
+          fontWeight: FontWeight.bold,
+          shadows: [Shadow(color: Colors.black, blurRadius: 2)],
+        ),
+      ),
+    );
+
+    return _isBarChart
+        ? BarChart(
+            BarChartData(
+              maxY: maxY,
+              titlesData: _buildTitlesData(),
+              gridData: _buildGridData(interval),
+              borderData: FlBorderData(show: false),
+              extraLinesData: ExtraLinesData(horizontalLines: [targetLine]),
+              barTouchData: BarTouchData(
+                touchTooltipData: BarTouchTooltipData(
+                  getTooltipColor: (_) => Colors.black87,
+                  getTooltipItem: (group, groupIndex, rod, rodIndex) {
+                    final metricName = _metricNames[metric] ?? '';
+                    final unit = _getUnitForMetric(metric);
+                    return BarTooltipItem(
+                      '$metricName\n${rod.toY.toInt()} $unit',
+                      TextStyle(
+                        color: _metricColors[metric],
+                        fontWeight: FontWeight.bold,
+                        fontSize: 12,
+                      ),
+                    );
+                  },
+                ),
+              ),
+              barGroups: _buildBarGroups(metric, maxY, target),
+            ),
+          )
+        : LineChart(
+            LineChartData(
+              minY: 0,
+              maxY: maxY,
+              lineTouchData: LineTouchData(
+                enabled: true,
+                touchTooltipData: LineTouchTooltipData(
+                  getTooltipColor: (_) => Colors.black87,
+                  tooltipPadding: const EdgeInsets.all(8),
+                  getTooltipItems: (touchedSpots) {
+                    return touchedSpots.map((spot) {
+                      final metricName = _metricNames[metric] ?? '';
+                      final unit = _getUnitForMetric(metric);
+                      return LineTooltipItem(
+                        '$metricName\n${spot.y.toInt()} $unit',
+                        TextStyle(
+                          color: _metricColors[metric],
+                          fontWeight: FontWeight.bold,
+                          fontSize: 12,
+                        ),
+                      );
+                    }).toList();
+                  },
+                ),
+              ),
+              titlesData: _buildTitlesData(),
+              gridData: _buildGridData(interval),
+              borderData: FlBorderData(show: false),
+              lineBarsData: _buildLineData(metric, maxY, target),
+              extraLinesData: ExtraLinesData(horizontalLines: [targetLine]),
+            ),
+          );
+  }
+
+  Widget _buildChartTypeBtn(IconData icon, bool isBar) {
+    final isActive = _isBarChart == isBar;
+    return GestureDetector(
+      onTap: () => setState(() => _isBarChart = isBar),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+        decoration: BoxDecoration(
+          color: isActive
+              ? AppColors.primaryColor.withValues(alpha: 0.2)
+              : Colors.transparent,
+          borderRadius: BorderRadius.circular(6),
+        ),
+        child: Icon(
+          icon,
+          size: 20,
+          color: isActive ? AppColors.primaryColor : Colors.white24,
         ),
       ),
     );
   }
 
-  double _calculateMaxY(double target) {
-    double maxVal = 0;
-    for (var item in _chartData) {
-      double v = (item['value'] as int).toDouble();
-      if (v > maxVal) maxVal = v;
+  FlTitlesData _buildTitlesData() {
+    return FlTitlesData(
+      show: true,
+      rightTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+      topTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+      leftTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+      bottomTitles: AxisTitles(
+        sideTitles: SideTitles(
+          showTitles: true,
+          interval: 1, // Fix: Force interval to 1 to match data points indices
+          getTitlesWidget: (value, meta) {
+            int index = value.toInt();
+            // Validate index is within range and matches the value exactly (to avoid potential float issues)
+            if (index >= 0 &&
+                index < _chartData.length &&
+                (value - index).abs() < 0.01) {
+              DateTime date = _chartData[index]['dateObj'];
+              bool isToday =
+                  date.day == DateTime.now().day &&
+                  date.month == DateTime.now().month;
+              return Padding(
+                padding: const EdgeInsets.only(top: 8.0),
+                child: Text(
+                  _getDayName(date),
+                  style: TextStyle(
+                    color: isToday ? Colors.white : Colors.white38,
+                    fontSize: 12,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              );
+            }
+            return const SizedBox.shrink();
+          },
+          reservedSize: 30,
+        ),
+      ),
+    );
+  }
+
+  FlGridData _buildGridData(double interval) {
+    return FlGridData(
+      show: true,
+      drawVerticalLine: false,
+      horizontalInterval: interval,
+      getDrawingHorizontalLine: (value) =>
+          FlLine(color: Colors.white.withValues(alpha: 0.05), strokeWidth: 1),
+    );
+  }
+
+  List<BarChartGroupData> _buildBarGroups(
+    String metric,
+    double maxY,
+    double target,
+  ) {
+    List<BarChartGroupData> groups = [];
+    final double rodWidth = 16.0;
+    final color = _metricColors[metric]!;
+    // Create a darker version of the main color for the overflow
+    final darkerColor = Color.lerp(color, Colors.black, 0.45)!;
+
+    for (int i = 0; i < _chartData.length; i++) {
+      final value = _getMetricValue(metric, _chartData[i]);
+
+      // Calculate cutoff relative to THIS BAR'S height (value)
+      // The gradient applies to the rod, so 1.0 is the top of the rod (value).
+      double cutoff = 1.0;
+      if (value > 0) {
+        cutoff = target / value;
+      }
+      if (cutoff > 1.0) cutoff = 1.0;
+      if (cutoff < 0.0) cutoff = 0.0;
+
+      groups.add(
+        BarChartGroupData(
+          x: i,
+          barRods: [
+            BarChartRodData(
+              toY: value,
+              width: rodWidth,
+              borderRadius: BorderRadius.circular(4),
+              gradient: LinearGradient(
+                colors: [color, color, darkerColor],
+                stops: [0.0, cutoff, 1.0],
+                begin: Alignment.bottomCenter,
+                end: Alignment.topCenter,
+              ),
+              backDrawRodData: BackgroundBarChartRodData(
+                show: true,
+                toY: maxY,
+                color: Colors.white.withValues(alpha: 0.02),
+              ),
+            ),
+          ],
+        ),
+      );
     }
-    return (maxVal > target ? maxVal : target) * 1.35;
+    return groups;
+  }
+
+  List<LineChartBarData> _buildLineData(
+    String metric,
+    double maxY,
+    double target,
+  ) {
+    List<LineChartBarData> lines = [];
+    final color = _metricColors[metric]!;
+    final darkerColor = Color.lerp(color, Colors.black, 0.45)!;
+
+    double maxDataVal = 0;
+    List<FlSpot> spots = [];
+    for (int i = 0; i < _chartData.length; i++) {
+      final value = _getMetricValue(metric, _chartData[i]);
+      spots.add(FlSpot(i.toDouble(), value));
+      if (value > maxDataVal) maxDataVal = value;
+    }
+
+    // Calculate cutoff relative to the LINE'S bounding box height (maxDataVal)
+    // The gradient on the line stroke generally maps to the min/max Y of the spots/data
+    double cutoff = (maxDataVal > 0) ? (target / maxDataVal) : 1.0;
+    if (cutoff > 1.0) cutoff = 1.0;
+    if (cutoff < 0.0) cutoff = 0.0;
+
+    lines.add(
+      LineChartBarData(
+        spots: spots,
+        isCurved: true,
+        gradient: LinearGradient(
+          colors: [color, color, darkerColor],
+          stops: [0.0, cutoff, 1.0],
+          begin: Alignment.bottomCenter,
+          end: Alignment.topCenter,
+        ),
+        barWidth: 3,
+        isStrokeCapRound: true,
+        dotData: FlDotData(
+          show: true,
+          getDotPainter: (spot, percent, barData, index) {
+            // Paint dot darker if it exceeds target
+            Color dotColor = (spot.y > target) ? darkerColor : color;
+            return FlDotCirclePainter(
+              radius: 4,
+              color: dotColor,
+              strokeWidth: 2,
+              strokeColor: Colors.black,
+            );
+          },
+        ),
+        belowBarData: BarAreaData(
+          show: true,
+          gradient: LinearGradient(
+            colors: [
+              color.withValues(alpha: 0.15),
+              color.withValues(alpha: 0.0),
+            ],
+            begin: Alignment.topCenter,
+            end: Alignment.bottomCenter,
+          ),
+        ),
+      ),
+    );
+    return lines;
+  }
+
+  double _getMetricValue(String metric, Map<String, dynamic> dataPoint) {
+    final value = dataPoint[metric];
+    if (value is int) return value.toDouble();
+    if (value is double) return value;
+    return 0.0;
+  }
+
+  String _getUnitForMetric(String metric) {
+    switch (metric) {
+      case 'calories':
+        return 'ккал';
+      case 'water':
+        return 'мл';
+      case 'protein':
+        return 'г';
+      case 'fat':
+        return 'г';
+      case 'carbs':
+        return 'г';
+      default:
+        return '';
+    }
+  }
+
+  double _calculateDynamicMaxY(String metric) {
+    double maxVal = 0;
+
+    for (var day in _chartData) {
+      double value = _getMetricValue(metric, day);
+      if (value > maxVal) maxVal = value;
+    }
+
+    if (maxVal == 0) {
+      return 100;
+    }
+
+    return (maxVal * 1.2).ceilToDouble();
+  }
+
+  double _calculateGridInterval(double maxY) {
+    if (maxY <= 100) return 20;
+    if (maxY <= 500) return 100;
+    if (maxY <= 2000) return 500;
+    return 1000;
   }
 
   Widget _buildMacrosDetailCard() {
@@ -663,14 +1166,16 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
       decoration: BoxDecoration(
         gradient: LinearGradient(
           colors: [
-            Colors.greenAccent.withValues(alpha: 0.15),
-            Colors.greenAccent.withValues(alpha: 0.05),
+            AppColors.primaryColor.withValues(alpha: 0.15),
+            AppColors.primaryColor.withValues(alpha: 0.05),
           ],
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
         ),
         borderRadius: BorderRadius.circular(24),
-        border: Border.all(color: Colors.greenAccent.withValues(alpha: 0.3)),
+        border: Border.all(
+          color: AppColors.primaryColor.withValues(alpha: 0.3),
+        ),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -679,14 +1184,14 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
             children: [
               const Icon(
                 Icons.auto_awesome,
-                color: Colors.greenAccent,
+                color: AppColors.primaryColor,
                 size: 24,
               ),
               const SizedBox(width: 10),
               const Text(
                 "AI Аналіз тижня",
                 style: TextStyle(
-                  color: Colors.greenAccent,
+                  color: AppColors.primaryColor,
                   fontWeight: FontWeight.bold,
                   fontSize: 16,
                 ),

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../constants/app_colors.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter_app/screens/basic/register_screen.dart';
 import 'dart:async';
@@ -12,19 +13,28 @@ class OnboardingScreen extends StatefulWidget {
 
 class _OnboardingScreenState extends State<OnboardingScreen> {
   final PageController _pageController = PageController();
+  final TextEditingController _nameController = TextEditingController();
   int _currentStep = 0;
+  bool _isNameValid = false;
 
   // Об'єкт для збору даних
   final Map<String, dynamic> userData = {
     "source": "",
     "name": "",
     "goal": "lose",
-    "gender": "Чоловік",
+    "gender": "male",
     "dob": DateTime(2000, 1, 1),
     "activity": "Сидячий",
     "height": 170.0,
     "weight": 70.0,
   };
+
+  @override
+  void dispose() {
+    _nameController.dispose();
+    _pageController.dispose();
+    super.dispose();
+  }
 
   void _nextPage() {
     _pageController.nextPage(
@@ -33,10 +43,17 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
     );
   }
 
+  void _validateName(String value) {
+    setState(() {
+      _isNameValid = value.trim().length >= 2;
+      userData['name'] = value.trim();
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFF0F0F0F),
+      backgroundColor: AppColors.backgroundDark,
       body: SafeArea(
         child: Column(
           children: [
@@ -45,8 +62,8 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
               padding: const EdgeInsets.all(20),
               child: LinearProgressIndicator(
                 value: (_currentStep + 1) / 10,
-                color: Colors.greenAccent,
-                backgroundColor: Colors.white10,
+                color: AppColors.primaryColor,
+                backgroundColor: AppColors.backgroundDarkAccent,
                 borderRadius: BorderRadius.circular(10),
               ),
             ),
@@ -102,26 +119,39 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
               fontWeight: FontWeight.bold,
             ),
           ),
+          const SizedBox(height: 10),
+          const Text(
+            "Це допоможе нам персоналізувати ваш досвід",
+            style: TextStyle(color: Colors.white60, fontSize: 16),
+            textAlign: TextAlign.center,
+          ),
           const SizedBox(height: 30),
           TextField(
+            controller: _nameController,
             style: const TextStyle(color: Colors.white, fontSize: 20),
             textAlign: TextAlign.center,
+            autofocus: true,
+            textCapitalization: TextCapitalization.words,
             decoration: InputDecoration(
               hintText: "Введіть ім'я",
               hintStyle: const TextStyle(color: Colors.white24),
-              enabledBorder: UnderlineInputBorder(
-                borderSide: BorderSide(
-                  color: Colors.greenAccent.withOpacity(0.5),
-                ),
+              helperText: _isNameValid ? "✓ Чудове ім'я!" : "Мінімум 2 символи",
+              helperStyle: TextStyle(
+                color: _isNameValid ? AppColors.primaryColor : Colors.white38,
+                fontSize: 14,
               ),
-              focusedBorder: const UnderlineInputBorder(
-                borderSide: BorderSide(color: Colors.greenAccent),
-              ),
+              border: InputBorder.none,
+              enabledBorder: InputBorder.none,
+              focusedBorder: InputBorder.none,
+              contentPadding: const EdgeInsets.symmetric(vertical: 12),
             ),
-            onChanged: (v) => userData['name'] = v,
+            onChanged: _validateName,
           ),
           const SizedBox(height: 50),
-          _buildNextButton(_nextPage),
+          _buildNextButton(
+            _isNameValid ? _nextPage : null,
+            isEnabled: _isNameValid,
+          ),
         ],
       ),
     );
@@ -132,7 +162,14 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
       "Ваша ціль?",
       ["Скинути вагу", "Утримати вагу", "Набрати вагу"],
       (val) {
-        userData['goal'] = val;
+        // Normalize Ukrainian text to English for database
+        if (val == "Скинути вагу") {
+          userData['goal'] = "lose";
+        } else if (val == "Набрати вагу") {
+          userData['goal'] = "gain";
+        } else if (val == "Утримати вагу") {
+          userData['goal'] = "maintain";
+        }
         _nextPage();
       },
     );
@@ -140,7 +177,12 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
 
   Widget _buildGenderStep() {
     return _buildSelectionStep("Ваша стать?", ["Чоловік", "Жінка"], (val) {
-      userData['gender'] = val;
+      // Normalize Ukrainian text to English for database
+      if (val == "Чоловік") {
+        userData['gender'] = "male";
+      } else if (val == "Жінка") {
+        userData['gender'] = "female";
+      }
       _nextPage();
     });
   }
@@ -250,25 +292,9 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
           ...options.map(
             (opt) => Padding(
               padding: const EdgeInsets.only(bottom: 15),
-              child: SizedBox(
-                width: double.infinity,
-                height: 60,
-                child: OutlinedButton(
-                  style: OutlinedButton.styleFrom(
-                    side: const BorderSide(
-                      color: Colors.greenAccent,
-                      width: 1.5,
-                    ),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(15),
-                    ),
-                  ),
-                  onPressed: () => onSelect(opt),
-                  child: Text(
-                    opt,
-                    style: const TextStyle(color: Colors.white, fontSize: 18),
-                  ),
-                ),
+              child: _InteractiveButton(
+                text: opt,
+                onPressed: () => onSelect(opt),
               ),
             ),
           ),
@@ -299,7 +325,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
         Text(
           "${userData[key].toInt()} $unit",
           style: const TextStyle(
-            color: Colors.greenAccent,
+            color: AppColors.primaryColor,
             fontSize: 55,
             fontWeight: FontWeight.bold,
           ),
@@ -311,7 +337,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
             value: userData[key],
             min: min,
             max: max,
-            activeColor: Colors.greenAccent,
+            activeColor: AppColors.primaryColor,
             inactiveColor: Colors.white12,
             onChanged: (v) => setState(() => userData[key] = v),
           ),
@@ -322,22 +348,26 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
     );
   }
 
-  Widget _buildNextButton(VoidCallback onTap) {
-    return SizedBox(
+  Widget _buildNextButton(VoidCallback? onTap, {bool isEnabled = true}) {
+    return AnimatedContainer(
+      duration: const Duration(milliseconds: 300),
       width: 200,
       height: 55,
       child: ElevatedButton(
         style: ElevatedButton.styleFrom(
-          backgroundColor: Colors.greenAccent,
+          backgroundColor: isEnabled
+              ? AppColors.primaryColor
+              : AppColors.primaryColor.withValues(alpha: 0.3),
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(30),
           ),
+          elevation: isEnabled ? 4 : 0,
         ),
         onPressed: onTap,
-        child: const Text(
+        child: Text(
           "ДАЛІ",
           style: TextStyle(
-            color: Colors.black,
+            color: isEnabled ? Colors.black : Colors.black38,
             fontWeight: FontWeight.bold,
             fontSize: 18,
           ),
@@ -397,7 +427,7 @@ class _PlanLoadingAnimationState extends State<_PlanLoadingAnimation> {
               child: CircularProgressIndicator(
                 value: _progress,
                 strokeWidth: 12,
-                color: Colors.greenAccent,
+                color: AppColors.primaryColor,
                 backgroundColor: Colors.white10,
               ),
             ),
@@ -415,7 +445,7 @@ class _PlanLoadingAnimationState extends State<_PlanLoadingAnimation> {
         Text(
           _statusText,
           style: const TextStyle(
-            color: Colors.greenAccent,
+            color: AppColors.primaryColor,
             fontSize: 20,
             fontWeight: FontWeight.w500,
           ),
@@ -433,7 +463,11 @@ class _PlanLoadingAnimationState extends State<_PlanLoadingAnimation> {
       padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 50),
       child: Row(
         children: [
-          const Icon(Icons.check_circle, color: Colors.greenAccent, size: 20),
+          const Icon(
+            Icons.check_circle,
+            color: AppColors.primaryColor,
+            size: 20,
+          ),
           const SizedBox(width: 12),
           Expanded(
             child: Text(
@@ -455,107 +489,306 @@ class _OnboardingSummary extends StatelessWidget {
 
   const _OnboardingSummary({required this.userData, required this.onFinish});
 
+  // Розрахунок віку з дати народження
+  int _calculateAge(DateTime dob) {
+    final now = DateTime.now();
+    int age = now.year - dob.year;
+    if (now.month < dob.month ||
+        (now.month == dob.month && now.day < dob.day)) {
+      age--;
+    }
+    return age;
+  }
+
+  // Розрахунок BMR (Basal Metabolic Rate) за формулою Mifflin-St Jeor
+  double _calculateBMR() {
+    final weight = userData['weight'] as double;
+    final height = userData['height'] as double;
+    final age = _calculateAge(userData['dob'] as DateTime);
+    final isMale = userData['gender'] == 'male';
+
+    final bmr = isMale
+        ? (10 * weight) + (6.25 * height) - (5 * age) + 5
+        : (10 * weight) + (6.25 * height) - (5 * age) - 161;
+
+    print(
+      '📊 BMR: $bmr (вага: $weight, ріст: $height, вік: $age, стать: ${isMale ? "чоловік" : "жінка"})',
+    );
+    return bmr;
+  }
+
+  // Розрахунок TDEE (Total Daily Energy Expenditure)
+  double _calculateTDEE() {
+    final bmr = _calculateBMR();
+    final activity = userData['activity'] as String;
+
+    double multiplier;
+    switch (activity) {
+      case 'Сидячий':
+        multiplier = 1.2;
+        break;
+      case 'Легка активність':
+        multiplier = 1.375;
+        break;
+      case 'Середня активність':
+        multiplier = 1.55;
+        break;
+      case 'Висока активність':
+        multiplier = 1.725;
+        break;
+      default:
+        print('⚠️ Невідомий рівень активності: $activity, використовую 1.2');
+        multiplier = 1.2;
+    }
+
+    final tdee = bmr * multiplier;
+    print('📊 TDEE: $tdee (BMR: $bmr × активність: $multiplier)');
+    return tdee;
+  }
+
+  // Розрахунок цільової калорійності на основі мети
+  double _calculateTargetCalories() {
+    final tdee = _calculateTDEE();
+    final goal = userData['goal'] as String;
+
+    print('🎯 Ціль користувача: $goal');
+
+    double target;
+    switch (goal) {
+      case 'lose':
+        target = tdee - 500; // Дефіцит 500 ккал для схуднення
+        print('📉 Схуднення: TDEE $tdee - 500 = $target');
+        break;
+      case 'gain':
+        target = tdee + 500; // Профіцит 500 ккал для набору (як на бекенді!)
+        print('📈 Набір: TDEE $tdee + 500 = $target');
+        break;
+      case 'maintain':
+      default:
+        target = tdee; // Підтримка ваги
+        print('➡️ Підтримка: TDEE $tdee');
+    }
+
+    return target;
+  }
+
+  // Розрахунок макронутрієнтів (30/30/40 як на бекенді)
+  Map<String, double> _calculateMacros() {
+    final targetCalories = _calculateTargetCalories();
+
+    // Backend formula: 30% protein, 30% fat, 40% carbs
+    final proteinGrams = (targetCalories * 0.3) / 4;
+    final fatGrams = (targetCalories * 0.3) / 9;
+    final carbGrams = (targetCalories * 0.4) / 4;
+
+    // Логування для перевірки
+    print('=== ONBOARDING MACRO CALCULATION ===');
+    print('Target Calories: $targetCalories');
+    print('Protein: ${proteinGrams.toInt()}g (30% калорій)');
+    print('Fat: ${fatGrams.toInt()}g (30% калорій)');
+    print('Carbs: ${carbGrams.toInt()}g (40% калорій)');
+    print('====================================');
+
+    return {
+      'calories': targetCalories,
+      'protein': proteinGrams,
+      'fat': fatGrams,
+      'carbs': carbGrams,
+    };
+  }
+
   @override
   Widget build(BuildContext context) {
+    final macros = _calculateMacros();
+    final calories = macros['calories']!.round();
+    final protein = macros['protein']!.round();
+    final fat = macros['fat']!.round();
+    final carbs = macros['carbs']!.round();
+
     return SingleChildScrollView(
-      padding: const EdgeInsets.all(30),
+      padding: const EdgeInsets.symmetric(horizontal: 30, vertical: 40),
       child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          // Header
           const Text(
-            "Ваш добовий ліміт",
+            "Ваша персональна ціль готова",
             style: TextStyle(
               color: Colors.white,
               fontSize: 28,
               fontWeight: FontWeight.bold,
             ),
           ),
-          const SizedBox(height: 30),
-
-          // Кругова діаграма лімітів (БЖВ)
-          Stack(
-            alignment: Alignment.center,
-            children: [
-              SizedBox(
-                width: 180,
-                height: 180,
-                child: CircularProgressIndicator(
-                  value: 0.7,
-                  strokeWidth: 15,
-                  color: Colors.blueAccent.withOpacity(0.8),
-                  backgroundColor: Colors.white10,
-                ),
-              ),
-              SizedBox(
-                width: 140,
-                height: 140,
-                child: CircularProgressIndicator(
-                  value: 0.5,
-                  strokeWidth: 15,
-                  color: Colors.orangeAccent.withOpacity(0.8),
-                  backgroundColor: Colors.transparent,
-                ),
-              ),
-              SizedBox(
-                width: 100,
-                height: 100,
-                child: CircularProgressIndicator(
-                  value: 0.4,
-                  strokeWidth: 15,
-                  color: Colors.purpleAccent.withOpacity(0.8),
-                  backgroundColor: Colors.transparent,
-                ),
-              ),
-              const Icon(Icons.bolt, color: Colors.greenAccent, size: 40),
-            ],
+          const SizedBox(height: 8),
+          const Text(
+            "Ось ваш індивідуальний план харчування",
+            style: TextStyle(color: Colors.white60, fontSize: 16),
           ),
-
-          const SizedBox(height: 30),
-          _buildMacroRow(),
           const SizedBox(height: 40),
 
-          const Text(
-            "Водний баланс: 2.1 л / день",
-            style: TextStyle(
-              color: Colors.blueAccent,
-              fontSize: 18,
-              fontWeight: FontWeight.bold,
+          // Калорії - велика карта
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.all(30),
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                colors: [
+                  AppColors.primaryColor.withValues(alpha: 0.15),
+                  AppColors.primaryColor.withValues(alpha: 0.05),
+                ],
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+              ),
+              borderRadius: BorderRadius.circular(24),
+              border: Border.all(
+                color: AppColors.primaryColor.withValues(alpha: 0.3),
+                width: 1.5,
+              ),
+            ),
+            child: Column(
+              children: [
+                const Text(
+                  "Денна норма",
+                  style: TextStyle(
+                    color: Colors.white70,
+                    fontSize: 14,
+                    letterSpacing: 1.2,
+                  ),
+                ),
+                const SizedBox(height: 12),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  crossAxisAlignment: CrossAxisAlignment.end,
+                  children: [
+                    Text(
+                      "$calories",
+                      style: const TextStyle(
+                        color: AppColors.primaryColor,
+                        fontSize: 64,
+                        fontWeight: FontWeight.bold,
+                        height: 1,
+                      ),
+                    ),
+                    const Padding(
+                      padding: EdgeInsets.only(bottom: 8, left: 8),
+                      child: Text(
+                        "ккал",
+                        style: TextStyle(
+                          color: AppColors.primaryColor,
+                          fontSize: 20,
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ],
             ),
           ),
-          const SizedBox(height: 30),
 
+          const SizedBox(height: 32),
+
+          // Макронутрієнти
           const Text(
-            "5 порад для початку:",
+            "Макронутрієнти",
             style: TextStyle(
               color: Colors.white,
               fontSize: 20,
               fontWeight: FontWeight.bold,
             ),
           ),
-          const SizedBox(height: 15),
-          _advice("Пийте склянку води відразу після пробудження."),
-          _advice("Намагайтеся заповнювати половину тарілки овочами."),
-          _advice("Фотографуйте їжу до того, як почнете їсти."),
-          _advice("Робіть перерву на прогулянку кожні 2 години."),
-          _advice("Не їжте за 3 години до сну для кращого відновлення."),
+          const SizedBox(height: 16),
+
+          _buildMacroRow(protein, fat, carbs),
+
+          const SizedBox(height: 32),
+
+          // Водний баланс
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.all(20),
+            decoration: BoxDecoration(
+              color: Colors.white.withValues(alpha: 0.05),
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(color: Colors.white.withValues(alpha: 0.1)),
+            ),
+            child: Row(
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: AppColors.primaryColor.withValues(alpha: 0.15),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: const Icon(
+                    Icons.water_drop,
+                    color: AppColors.primaryColor,
+                    size: 24,
+                  ),
+                ),
+                const SizedBox(width: 16),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text(
+                        "Водний баланс",
+                        style: TextStyle(color: Colors.white70, fontSize: 14),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        "${((userData['weight'] as double) * 0.03).toStringAsFixed(1)} л/день",
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 18,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+
+          const SizedBox(height: 32),
+
+          // Поради
+          const Text(
+            "Швидкі поради",
+            style: TextStyle(
+              color: Colors.white,
+              fontSize: 20,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+          const SizedBox(height: 16),
+          _buildAdvice("Фотографуйте страви перед їдою"),
+          _buildAdvice("Пийте воду протягом дня"),
+          _buildAdvice("Додавайте овочі до кожного прийому"),
 
           const SizedBox(height: 40),
+
+          // Кнопка
           SizedBox(
             width: double.infinity,
-            height: 60,
+            height: 56,
             child: ElevatedButton(
               onPressed: onFinish,
               style: ElevatedButton.styleFrom(
-                backgroundColor: Colors.greenAccent,
+                backgroundColor: AppColors.primaryColor,
+                foregroundColor: Colors.black,
                 shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(15),
+                  borderRadius: BorderRadius.circular(16),
                 ),
+                elevation: 0,
               ),
               child: const Text(
-                "СТВОРИТИ АККАУНТ",
+                "ПРОДОВЖИТИ",
                 style: TextStyle(
-                  color: Colors.black,
+                  fontSize: 16,
                   fontWeight: FontWeight.bold,
-                  fontSize: 18,
+                  letterSpacing: 1.2,
                 ),
               ),
             ),
@@ -565,44 +798,85 @@ class _OnboardingSummary extends StatelessWidget {
     );
   }
 
-  Widget _buildMacroRow() {
+  Widget _buildMacroRow(int protein, int fat, int carbs) {
     return Row(
-      mainAxisAlignment: MainAxisAlignment.spaceAround,
       children: [
-        _macroItem("Білки", Colors.blueAccent),
-        _macroItem("Жири", Colors.orangeAccent),
-        _macroItem("Вуглеводи", Colors.purpleAccent),
-      ],
-    );
-  }
-
-  Widget _macroItem(String label, Color color) {
-    return Column(
-      children: [
-        Container(
-          width: 12,
-          height: 12,
-          decoration: BoxDecoration(color: color, shape: BoxShape.circle),
+        Expanded(
+          child: _buildSimpleMacroCard("Білки", protein, Icons.egg_outlined),
         ),
-        const SizedBox(height: 5),
-        Text(
-          label,
-          style: const TextStyle(color: Colors.white70, fontSize: 14),
-        ),
-      ],
-    );
-  }
-
-  Widget _advice(String text) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 10),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          const Text(
-            "• ",
-            style: TextStyle(color: Colors.greenAccent, fontSize: 20),
+        const SizedBox(width: 12),
+        Expanded(child: _buildSimpleMacroCard("Жири", fat, Icons.opacity)),
+        const SizedBox(width: 12),
+        Expanded(
+          child: _buildSimpleMacroCard(
+            "Вуглеводи",
+            carbs,
+            Icons.rice_bowl_outlined,
           ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildSimpleMacroCard(String label, int value, IconData icon) {
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: Colors.white.withValues(alpha: 0.05),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.1)),
+      ),
+      child: Column(
+        children: [
+          Icon(icon, color: AppColors.primaryColor, size: 24),
+          const SizedBox(height: 10),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            crossAxisAlignment: CrossAxisAlignment.baseline,
+            textBaseline: TextBaseline.alphabetic,
+            children: [
+              Text(
+                "$value",
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontSize: 20,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+              Text(
+                " г",
+                style: TextStyle(
+                  color: Colors.white.withValues(alpha: 0.6),
+                  fontSize: 14,
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 6),
+          Text(
+            label,
+            style: const TextStyle(color: Colors.white70, fontSize: 12),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildAdvice(String text) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 12),
+      child: Row(
+        children: [
+          Container(
+            width: 6,
+            height: 6,
+            decoration: const BoxDecoration(
+              color: AppColors.primaryColor,
+              shape: BoxShape.circle,
+            ),
+          ),
+          const SizedBox(width: 12),
           Expanded(
             child: Text(
               text,
@@ -610,6 +884,63 @@ class _OnboardingSummary extends StatelessWidget {
             ),
           ),
         ],
+      ),
+    );
+  }
+}
+
+// --- ІНТЕРАКТИВНА КНОПКА З АНІМАЦІЄЮ ---
+
+class _InteractiveButton extends StatefulWidget {
+  final String text;
+  final VoidCallback onPressed;
+
+  const _InteractiveButton({required this.text, required this.onPressed});
+
+  @override
+  State<_InteractiveButton> createState() => _InteractiveButtonState();
+}
+
+class _InteractiveButtonState extends State<_InteractiveButton> {
+  bool _isPressed = false;
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTapDown: (_) => setState(() => _isPressed = true),
+      onTapUp: (_) {
+        setState(() => _isPressed = false);
+        widget.onPressed();
+      },
+      onTapCancel: () => setState(() => _isPressed = false),
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 150),
+        curve: Curves.easeOut,
+        transform: Matrix4.identity()..scale(_isPressed ? 0.95 : 1.0),
+        width: double.infinity,
+        height: 60,
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(15),
+          border: Border.all(
+            color: _isPressed
+                ? AppColors.primaryColor
+                : AppColors.primaryColor.withValues(alpha: 0.6),
+            width: _isPressed ? 2.0 : 1.5,
+          ),
+          color: _isPressed
+              ? AppColors.primaryColor.withValues(alpha: 0.1)
+              : Colors.transparent,
+        ),
+        child: Center(
+          child: Text(
+            widget.text,
+            style: TextStyle(
+              color: _isPressed ? AppColors.primaryColor : Colors.white,
+              fontSize: 18,
+              fontWeight: _isPressed ? FontWeight.bold : FontWeight.normal,
+            ),
+          ),
+        ),
       ),
     );
   }

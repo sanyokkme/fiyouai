@@ -11,7 +11,7 @@ class MealRepository:
         return self.supabase.table("meal_history").insert(meal_data).execute()
 
     def get_water_logs(self, user_id: str, date_from: str):
-        return self.supabase.table("water_logs").select("amount").eq("user_id", user_id).gte("created_at", date_from).execute()
+        return self.supabase.table("water_logs").select("amount, created_at").eq("user_id", user_id).gte("created_at", date_from).execute()
 
     def add_water(self, water_data: dict):
         return self.supabase.table("water_logs").insert(water_data).execute()
@@ -27,3 +27,24 @@ class MealRepository:
 
     def get_stories(self):
         return self.supabase.table('app_stories').select('*').eq('is_active', True).execute()
+
+    def add_vitamin(self, data: dict):
+        try:
+            return self.supabase.table("user_vitamins").insert(data).execute()
+        except Exception as e:
+            print(f"Error inserting vitamin: {e}")
+            raise e
+
+    def get_user_vitamins(self, user_id: str):
+        try:
+            return self.supabase.table("user_vitamins").select("*").eq("user_id", user_id).execute()
+        except Exception as e:
+            print(f"Error fetching vitamins: {e}")
+            raise e
+
+    def delete_vitamin(self, vitamin_id: str):
+        try:
+            return self.supabase.table("user_vitamins").delete().eq("id", vitamin_id).execute()
+        except Exception as e:
+            print(f"Error deleting vitamin: {e}")
+            raise e

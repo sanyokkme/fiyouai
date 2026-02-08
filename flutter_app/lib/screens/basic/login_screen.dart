@@ -2,7 +2,7 @@ import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'forgot_password_screen.dart';
 import '../../services/auth_service.dart';
-
+import '../../constants/app_colors.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -80,17 +80,8 @@ class _LoginScreenState extends State<LoginScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFF0F0F0F),
-      body: Container(
-        width: double.infinity,
-        height: double.infinity,
-        decoration: const BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topCenter,
-            end: Alignment.bottomCenter,
-            colors: [Color(0xFF1A1A1A), Color(0xFF0F0F0F)],
-          ),
-        ),
+      backgroundColor: AppColors.backgroundDark,
+      body: AppColors.buildBackgroundWithBlurSpots(
         child: SafeArea(
           child: Center(
             child: SingleChildScrollView(
@@ -141,7 +132,7 @@ class _LoginScreenState extends State<LoginScreen> {
                       child: const Text(
                         "Забули пароль?",
                         style: TextStyle(
-                          color: Colors.greenAccent,
+                          color: AppColors.primaryColor,
                           fontWeight: FontWeight.w600,
                         ),
                       ),
@@ -155,7 +146,7 @@ class _LoginScreenState extends State<LoginScreen> {
                     Container(
                       padding: const EdgeInsets.all(12),
                       decoration: BoxDecoration(
-                        color: Colors.redAccent.withOpacity(0.1),
+                        color: Colors.redAccent.withValues(alpha: 0.1),
                         borderRadius: BorderRadius.circular(12),
                       ),
                       child: Row(
@@ -185,7 +176,7 @@ class _LoginScreenState extends State<LoginScreen> {
                   _loading
                       ? const Center(
                           child: CircularProgressIndicator(
-                            color: Colors.greenAccent,
+                            color: AppColors.primaryColor,
                           ),
                         )
                       : SizedBox(
@@ -194,10 +185,10 @@ class _LoginScreenState extends State<LoginScreen> {
                           child: ElevatedButton(
                             onPressed: _canLogin ? _login : null,
                             style: ElevatedButton.styleFrom(
-                              backgroundColor: Colors.greenAccent,
+                              backgroundColor: AppColors.primaryColor,
                               foregroundColor: Colors.black,
-                              disabledBackgroundColor: Colors.greenAccent
-                                  .withOpacity(0.2),
+                              disabledBackgroundColor: AppColors.primaryColor
+                                  .withValues(alpha: 0.2),
                               shape: RoundedRectangleBorder(
                                 borderRadius: BorderRadius.circular(16),
                               ),
@@ -229,7 +220,7 @@ class _LoginScreenState extends State<LoginScreen> {
                             TextSpan(
                               text: "Зареєструватися",
                               style: TextStyle(
-                                color: Colors.greenAccent,
+                                color: AppColors.primaryColor,
                                 fontWeight: FontWeight.bold,
                               ),
                             ),
@@ -255,8 +246,8 @@ class _LoginScreenState extends State<LoginScreen> {
                           ),
                           TextSpan(
                             text: "\nПравилами і політикою конфіденційності",
-                            style: const TextStyle(
-                              color: Colors.greenAccent,
+                            style: TextStyle(
+                              color: AppColors.primaryColor,
                               decoration: TextDecoration.underline,
                             ),
                             recognizer: TapGestureRecognizer()
@@ -291,16 +282,16 @@ class _LoginScreenState extends State<LoginScreen> {
       decoration: InputDecoration(
         labelText: label,
         labelStyle: const TextStyle(color: Colors.white60),
-        prefixIcon: Icon(icon, color: Colors.greenAccent),
+        prefixIcon: Icon(icon, color: AppColors.primaryColor),
         filled: true,
-        fillColor: Colors.white.withOpacity(0.05),
+        fillColor: Colors.white.withValues(alpha: 0.05),
         enabledBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(16),
           borderSide: const BorderSide(color: Colors.white10),
         ),
         focusedBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(16),
-          borderSide: const BorderSide(color: Colors.greenAccent),
+          borderSide: BorderSide(color: AppColors.primaryColor),
         ),
         disabledBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(16),

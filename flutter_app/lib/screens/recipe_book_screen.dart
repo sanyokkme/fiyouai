@@ -3,6 +3,7 @@ import 'package:http/http.dart' as http;
 import 'package:share_plus/share_plus.dart';
 import 'dart:convert';
 import '../services/auth_service.dart';
+import '../constants/app_colors.dart';
 
 class RecipeBookScreen extends StatefulWidget {
   const RecipeBookScreen({super.key});
@@ -41,9 +42,7 @@ class _RecipeBookScreenState extends State<RecipeBookScreen> {
   Future<void> _deleteRecipe(String recipeId, int index) async {
     try {
       final res = await http.delete(
-        Uri.parse(
-          '${AuthService.baseUrl}/delete_recipe/$recipeId',
-        ),
+        Uri.parse('${AuthService.baseUrl}/delete_recipe/$recipeId'),
       );
       if (res.statusCode == 200) {
         setState(() {
@@ -112,7 +111,7 @@ class _RecipeBookScreenState extends State<RecipeBookScreen> {
                   fontWeight: FontWeight.bold,
                 ),
               ),
-              backgroundColor: Colors.greenAccent,
+              backgroundColor: AppColors.primaryColor,
               behavior: SnackBarBehavior.floating,
             ),
           );
@@ -126,17 +125,8 @@ class _RecipeBookScreenState extends State<RecipeBookScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFF0F0F0F),
-      body: Container(
-        width: double.infinity,
-        height: double.infinity,
-        decoration: const BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topCenter,
-            end: Alignment.bottomCenter,
-            colors: [Color(0xFF1A1A1A), Color(0xFF0F0F0F)],
-          ),
-        ),
+      backgroundColor: AppColors.backgroundDark,
+      body: AppColors.buildBackgroundWithBlurSpots(
         child: SafeArea(
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -168,7 +158,7 @@ class _RecipeBookScreenState extends State<RecipeBookScreen> {
                 child: _isLoading
                     ? const Center(
                         child: CircularProgressIndicator(
-                          color: Colors.greenAccent,
+                          color: AppColors.primaryColor,
                         ),
                       )
                     : _savedRecipes.isEmpty
@@ -272,7 +262,7 @@ class _RecipeBookScreenState extends State<RecipeBookScreen> {
       ),
       child: const Icon(
         Icons.restaurant_menu,
-        color: Colors.greenAccent,
+        color: AppColors.primaryColor,
         size: 20,
       ),
     );
@@ -354,7 +344,7 @@ class _RecipeBookScreenState extends State<RecipeBookScreen> {
                       IconButton(
                         icon: const Icon(
                           Icons.share_outlined,
-                          color: Colors.greenAccent,
+                          color: AppColors.primaryColor,
                         ),
                         onPressed: () => _shareRecipe(recipe),
                       ),
@@ -408,7 +398,7 @@ class _RecipeBookScreenState extends State<RecipeBookScreen> {
               child: ElevatedButton(
                 onPressed: () => _markAsEaten(recipe),
                 style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.greenAccent,
+                  backgroundColor: AppColors.primaryColor,
                   foregroundColor: Colors.black,
                   minimumSize: const Size(double.infinity, 60),
                   shape: RoundedRectangleBorder(
@@ -431,7 +421,7 @@ class _RecipeBookScreenState extends State<RecipeBookScreen> {
   Widget _buildMacroRow(dynamic recipe) {
     return Row(
       children: [
-        _macroChip("${recipe['calories']} ккал", Colors.greenAccent),
+        _macroChip("${recipe['calories']} ккал", AppColors.primaryColor),
         const SizedBox(width: 8),
         _macroChip("${recipe['protein']}г Б", Colors.blueAccent),
         const SizedBox(width: 8),

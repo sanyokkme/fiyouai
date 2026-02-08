@@ -5,6 +5,7 @@ import 'package:shimmer/shimmer.dart';
 import 'dart:convert';
 import 'dart:async';
 import '../services/auth_service.dart';
+import '../constants/app_colors.dart';
 
 class RecipesScreen extends StatefulWidget {
   const RecipesScreen({super.key});
@@ -86,9 +87,7 @@ class _RecipesScreenState extends State<RecipesScreen> {
     try {
       final userId = await AuthService.getStoredUserId();
       final res = await http.get(
-        Uri.parse(
-          '${AuthService.baseUrl}/generate_recipe/$userId',
-        ),
+        Uri.parse('${AuthService.baseUrl}/generate_recipe/$userId'),
       );
 
       if (res.statusCode == 200) {
@@ -157,7 +156,7 @@ class _RecipesScreenState extends State<RecipesScreen> {
                   fontWeight: FontWeight.bold,
                 ),
               ),
-              backgroundColor: Colors.greenAccent,
+              backgroundColor: AppColors.primaryColor,
               behavior: SnackBarBehavior.floating,
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(15),
@@ -191,90 +190,102 @@ class _RecipesScreenState extends State<RecipesScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFF0F0F0F),
-      appBar: AppBar(
-        title: const Text(
-          "AI Рецепти",
-          style: TextStyle(fontWeight: FontWeight.bold),
-        ),
-        backgroundColor: Colors.transparent,
-        elevation: 0,
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back_ios, color: Colors.white),
-          onPressed: () => Navigator.pop(context),
-        ),
-        actions: [
-          if (_recipe != null && !_isLoading)
-            IconButton(
-              icon: Icon(
-                _isEditing ? Icons.check_circle : Icons.edit_note,
-                color: Colors.greenAccent,
-                size: 30,
-              ),
-              onPressed: () => setState(() => _isEditing = !_isEditing),
-            ),
-        ],
-      ),
-      body: Container(
-        width: double.infinity,
-        height: double.infinity,
-        decoration: const BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topCenter,
-            end: Alignment.bottomCenter,
-            colors: [Color(0xFF1A1A1A), Color(0xFF0F0F0F)],
-          ),
-        ),
+      backgroundColor: AppColors.backgroundDark,
+      body: AppColors.buildBackgroundWithBlurSpots(
         child: SafeArea(
-          child: SingleChildScrollView(
-            padding: const EdgeInsets.symmetric(horizontal: 25, vertical: 10),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const Text(
-                  'Персональна страва на основі вашої мети',
-                  style: TextStyle(color: Colors.white70, fontSize: 16),
-                ),
-                const SizedBox(height: 30),
-
-                // ЛОГІКА ВІДОБРАЖЕННЯ
-                if (_isLoading)
-                  _buildLoadingState() // AI генерує
-                else if (_recipe != null)
-                  _buildRecipeCard() // Рецепт є (з кешу або новий)
-                else
-                  _buildEmptyState(), // Нічого немає
-
-                const SizedBox(height: 30),
-
-                if (!_isLoading)
-                  SizedBox(
-                    width: double.infinity,
-                    height: 60,
-                    child: ElevatedButton(
-                      onPressed: _generateRecipe,
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: Colors.greenAccent,
-                        foregroundColor: Colors.black,
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(18),
-                        ),
-                        elevation: 0,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Padding(
+                padding: const EdgeInsets.fromLTRB(25, 20, 25, 10),
+                child: Row(
+                  children: [
+                    IconButton(
+                      icon: const Icon(
+                        Icons.arrow_back_ios,
+                        color: Colors.white,
+                        size: 20,
                       ),
-                      child: Text(
-                        _recipe == null
-                            ? "ЗГЕНЕРУВАТИ ВЕЧЕРЮ"
-                            : "ЗГЕНЕРУВАТИ ІНШУ",
-                        style: const TextStyle(
-                          fontSize: 18,
-                          fontWeight: FontWeight.bold,
-                        ),
+                      onPressed: () => Navigator.pop(context),
+                    ),
+                    const Text(
+                      'AI Рецепти',
+                      style: TextStyle(
+                        fontSize: 32,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.white,
                       ),
                     ),
+                    const Spacer(),
+                    if (_recipe != null && !_isLoading)
+                      IconButton(
+                        icon: Icon(
+                          _isEditing ? Icons.check_circle : Icons.edit_note,
+                          color: AppColors.primaryColor,
+                          size: 30,
+                        ),
+                        onPressed: () =>
+                            setState(() => _isEditing = !_isEditing),
+                      ),
+                  ],
+                ),
+              ),
+              Expanded(
+                child: SingleChildScrollView(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 25,
+                    vertical: 10,
                   ),
-                const SizedBox(height: 20),
-              ],
-            ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text(
+                        'Персональна страва на основі вашої мети',
+                        style: TextStyle(color: Colors.white70, fontSize: 16),
+                      ),
+                      const SizedBox(height: 30),
+
+                      // ЛОГІКА ВІДОБРАЖЕННЯ
+                      if (_isLoading)
+                        _buildLoadingState() // AI генерує
+                      else if (_recipe != null)
+                        _buildRecipeCard() // Рецепт є (з кешу або новий)
+                      else
+                        _buildEmptyState(), // Нічого немає
+
+                      const SizedBox(height: 30),
+
+                      if (!_isLoading)
+                        SizedBox(
+                          width: double.infinity,
+                          height: 60,
+                          child: ElevatedButton(
+                            onPressed: _generateRecipe,
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: AppColors.primaryColor,
+                              foregroundColor: Colors.black,
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(18),
+                              ),
+                              elevation: 0,
+                            ),
+                            child: Text(
+                              _recipe == null
+                                  ? "ЗГЕНЕРУВАТИ ВЕЧЕРЮ"
+                                  : "ЗГЕНЕРУВАТИ ІНШУ",
+                              style: const TextStyle(
+                                fontSize: 18,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                          ),
+                        ),
+                      const SizedBox(height: 20),
+                    ],
+                  ),
+                ),
+              ),
+            ],
           ),
         ),
       ),
@@ -376,7 +387,7 @@ class _RecipesScreenState extends State<RecipesScreen> {
         ),
         focusedBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(12),
-          borderSide: const BorderSide(color: Colors.greenAccent),
+          borderSide: const BorderSide(color: AppColors.primaryColor),
         ),
       ),
     );
@@ -385,7 +396,7 @@ class _RecipesScreenState extends State<RecipesScreen> {
   Widget _buildSectionHeader(String title, IconData icon) {
     return Row(
       children: [
-        Icon(icon, color: Colors.greenAccent, size: 20),
+        Icon(icon, color: AppColors.primaryColor, size: 20),
         const SizedBox(width: 8),
         Text(
           title,
@@ -414,7 +425,7 @@ class _RecipesScreenState extends State<RecipesScreen> {
         onPressed: _saveRecipe,
         icon: Icon(
           _isEditing ? Icons.save_as : Icons.bookmark_border,
-          color: Colors.greenAccent,
+          color: AppColors.primaryColor,
         ),
         label: Text(
           _isEditing ? "ЗБЕРЕГТИ ЗМІНИ" : "ЗБЕРЕГТИ У КНИГУ",
@@ -436,7 +447,11 @@ class _RecipesScreenState extends State<RecipesScreen> {
       ),
       child: Row(
         children: [
-          const Icon(Icons.timer_outlined, color: Colors.greenAccent, size: 14),
+          const Icon(
+            Icons.timer_outlined,
+            color: AppColors.primaryColor,
+            size: 14,
+          ),
           const SizedBox(width: 4),
           Text(
             time,
@@ -450,7 +465,7 @@ class _RecipesScreenState extends State<RecipesScreen> {
   Widget _buildMacroRow() {
     return Row(
       children: [
-        _macroItem("Ккал", "${_recipe!['calories']}", Colors.greenAccent),
+        _macroItem("Ккал", "${_recipe!['calories']}", AppColors.primaryColor),
         _macroItem("Б", "${_recipe!['protein']}г", const Color(0xFF42A5F5)),
         _macroItem("Ж", "${_recipe!['fat']}г", const Color(0xFFFFA726)),
         _macroItem("В", "${_recipe!['carbs']}г", const Color(0xFFAB47BC)),
@@ -472,7 +487,10 @@ class _RecipesScreenState extends State<RecipesScreen> {
           children: [
             Text(
               label,
-              style: TextStyle(color: color.withValues(alpha: 0.7), fontSize: 11),
+              style: TextStyle(
+                color: color.withValues(alpha: 0.7),
+                fontSize: 11,
+              ),
             ),
             const SizedBox(height: 2),
             Text(
@@ -514,7 +532,7 @@ class _RecipesScreenState extends State<RecipesScreen> {
               width: 100,
               height: 100,
               child: CircularProgressIndicator(
-                color: Colors.greenAccent.withValues(alpha: 0.3),
+                color: AppColors.primaryColor.withValues(alpha: 0.3),
                 strokeWidth: 10,
               ),
             ),
@@ -522,7 +540,7 @@ class _RecipesScreenState extends State<RecipesScreen> {
               width: 80,
               height: 80,
               child: CircularProgressIndicator(
-                color: Colors.greenAccent,
+                color: AppColors.primaryColor,
                 strokeWidth: 4,
               ),
             ),
@@ -550,7 +568,7 @@ class _RecipesScreenState extends State<RecipesScreen> {
           padding: EdgeInsets.symmetric(vertical: 60),
           child: Column(
             children: [
-              Icon(Icons.auto_awesome, color: Colors.greenAccent, size: 50),
+              Icon(Icons.auto_awesome, color: AppColors.primaryColor, size: 50),
               SizedBox(height: 20),
               Text(
                 "Натисніть кнопку нижче,\nщоб AI створив ідеальну страву",

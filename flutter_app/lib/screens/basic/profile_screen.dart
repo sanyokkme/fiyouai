@@ -5,6 +5,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:shimmer/shimmer.dart';
 import 'dart:convert';
 import '../../services/auth_service.dart';
+import '../../constants/app_colors.dart';
 import '../recipe_book_screen.dart';
 
 class ProfileScreen extends StatefulWidget {
@@ -79,7 +80,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
         return "Підтримка ваги";
     }
   }
-
 
   IconData _getGoalIcon(String? goal) {
     if (goal?.contains('gain') == true) return Icons.fitness_center;
@@ -193,115 +193,165 @@ class _ProfileScreenState extends State<ProfileScreen> {
   Widget build(BuildContext context) {
     if (_isLoading && _userData == null) {
       return Scaffold(
-        backgroundColor: const Color(0xFF0F0F0F),
-        appBar: AppBar(backgroundColor: Colors.transparent, elevation: 0),
-        body: _buildSkeleton(),
+        backgroundColor: AppColors.backgroundDark,
+        appBar: AppBar(
+          backgroundColor: Colors.transparent,
+          elevation: 0,
+          leading: IconButton(
+            icon: const Icon(Icons.arrow_back, color: Colors.white),
+            onPressed: () => Navigator.pop(context),
+          ),
+          title: const Text('Профіль', style: TextStyle(color: Colors.white)),
+        ),
+        body: AppColors.buildBackgroundWithBlurSpots(child: _buildSkeleton()),
       );
     }
 
     return Scaffold(
-      backgroundColor: const Color(0xFF0F0F0F),
-      appBar: AppBar(
-        title: const Text(
-          "Профіль",
-          style: TextStyle(fontWeight: FontWeight.bold),
-        ),
-        backgroundColor: Colors.transparent,
-        elevation: 0,
-      ),
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.symmetric(horizontal: 24),
-        child: Column(
-          children: [
-            const SizedBox(height: 20),
-            _buildAvatarSection(),
-            const SizedBox(height: 15),
-            Text(
-              _userData?['email'] ?? "Пошта не вказана",
-              style: const TextStyle(color: Colors.white70, fontSize: 16),
-            ),
-            _buildGoalBadge(_userData?['goal']),
-            const SizedBox(height: 35),
-
-            // Характеристики з "Барабанами"
-            _buildInfoCard(
-              "Стать",
-              "",
-              Icons.wc,
-              false,
-              'gender',
-              customTrailing: _buildGenderDisplay(_userData?['gender']),
-            ),
-
-            _buildInfoCard(
-              "Вік",
-              "${_userData?['age'] ?? 0} років",
-              Icons.cake_outlined,
-              true,
-              'age',
-              onEdit: () => _showWheelPicker(
-                "Вік",
-                10,
-                100,
-                _userData?['age'],
-                "",
-                (val) => _updateField('age', val),
-              ),
-            ),
-
-            _buildInfoCard(
-              "Ріст",
-              "${_userData?['height'] ?? 0} см",
-              Icons.height,
-              true,
-              'height',
-              onEdit: () => _showWheelPicker(
-                "Ріст",
-                100,
-                230,
-                _userData?['height'],
-                "см",
-                (val) => _updateField('height', val),
-              ),
-            ),
-
-            _buildInfoCard(
-              "Вага",
-              "${_userData?['weight'] ?? 0} кг",
-              Icons.monitor_weight_outlined,
-              true,
-              'weight',
-              onEdit: () => _showWheelPicker(
-                "Вага",
-                30,
-                200,
-                _userData?['weight'],
-                "кг",
-                (val) => _updateField('weight', val),
-              ),
-            ),
-
-            const SizedBox(height: 25),
-            _buildActionButton(
-              "Моя Книга Рецептів",
-              Icons.menu_book_rounded,
-              () => Navigator.push(
-                context,
-                PageRouteBuilder(
-                  pageBuilder: (context, animation, secondaryAnimation) =>
-                      const RecipeBookScreen(),
-                  transitionsBuilder:
-                      (context, animation, secondaryAnimation, child) {
-                        return FadeTransition(opacity: animation, child: child);
-                      },
-                  transitionDuration: const Duration(milliseconds: 400),
+      backgroundColor: AppColors.backgroundDark,
+      body: AppColors.buildBackgroundWithBlurSpots(
+        child: SafeArea(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Padding(
+                padding: const EdgeInsets.fromLTRB(25, 20, 25, 10),
+                child: Row(
+                  children: [
+                    IconButton(
+                      icon: const Icon(
+                        Icons.arrow_back_ios,
+                        color: Colors.white,
+                        size: 20,
+                      ),
+                      onPressed: () => Navigator.pop(context),
+                    ),
+                    const Text(
+                      'Профіль',
+                      style: TextStyle(
+                        fontSize: 32,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.white,
+                      ),
+                    ),
+                  ],
                 ),
               ),
-            ),
-            const Divider(color: Colors.white10, height: 60),
-            _buildLogoutButton(),
-            const SizedBox(height: 40),
-          ],
+              Expanded(
+                child: SingleChildScrollView(
+                  padding: const EdgeInsets.symmetric(horizontal: 24),
+                  child: Column(
+                    children: [
+                      const SizedBox(height: 20),
+                      _buildAvatarSection(),
+                      const SizedBox(height: 15),
+                      Text(
+                        _userData?['email'] ?? "Пошта не вказана",
+                        style: const TextStyle(
+                          color: Colors.white70,
+                          fontSize: 16,
+                        ),
+                      ),
+                      _buildGoalBadge(_userData?['goal']),
+                      const SizedBox(height: 35),
+
+                      // Характеристики з "Барабанами"
+                      _buildInfoCard(
+                        "Стать",
+                        "",
+                        Icons.wc,
+                        false,
+                        'gender',
+                        customTrailing: _buildGenderDisplay(
+                          _userData?['gender'],
+                        ),
+                      ),
+
+                      _buildInfoCard(
+                        "Вік",
+                        "${_userData?['age'] ?? 0} років",
+                        Icons.cake_outlined,
+                        true,
+                        'age',
+                        onEdit: () => _showWheelPicker(
+                          "Вік",
+                          10,
+                          100,
+                          _userData?['age'],
+                          "",
+                          (val) => _updateField('age', val),
+                        ),
+                      ),
+
+                      _buildInfoCard(
+                        "Ріст",
+                        "${_userData?['height'] ?? 0} см",
+                        Icons.height,
+                        true,
+                        'height',
+                        onEdit: () => _showWheelPicker(
+                          "Ріст",
+                          100,
+                          230,
+                          _userData?['height'],
+                          "см",
+                          (val) => _updateField('height', val),
+                        ),
+                      ),
+
+                      _buildInfoCard(
+                        "Вага",
+                        "${_userData?['weight'] ?? 0} кг",
+                        Icons.monitor_weight_outlined,
+                        true,
+                        'weight',
+                        onEdit: () => _showWheelPicker(
+                          "Вага",
+                          30,
+                          200,
+                          _userData?['weight'],
+                          "кг",
+                          (val) => _updateField('weight', val),
+                        ),
+                      ),
+
+                      const SizedBox(height: 25),
+                      _buildActionButton(
+                        "Моя Книга Рецептів",
+                        Icons.menu_book_rounded,
+                        () => Navigator.push(
+                          context,
+                          PageRouteBuilder(
+                            pageBuilder:
+                                (context, animation, secondaryAnimation) =>
+                                    const RecipeBookScreen(),
+                            transitionsBuilder:
+                                (
+                                  context,
+                                  animation,
+                                  secondaryAnimation,
+                                  child,
+                                ) {
+                                  return FadeTransition(
+                                    opacity: animation,
+                                    child: child,
+                                  );
+                                },
+                            transitionDuration: const Duration(
+                              milliseconds: 400,
+                            ),
+                          ),
+                        ),
+                      ),
+                      const Divider(color: Colors.white10, height: 60),
+                      _buildLogoutButton(),
+                      const SizedBox(height: 40),
+                    ],
+                  ),
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     );
@@ -324,7 +374,11 @@ class _ProfileScreenState extends State<ProfileScreen> {
             child:
                 (_userData?['avatar_url'] == null ||
                     _userData?['avatar_url'] == "")
-                ? const Icon(Icons.person, size: 60, color: Colors.greenAccent)
+                ? const Icon(
+                    Icons.person,
+                    size: 60,
+                    color: AppColors.primaryColor,
+                  )
                 : null,
           ),
           Positioned(
@@ -335,7 +389,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
               child: Container(
                 padding: const EdgeInsets.all(8),
                 decoration: const BoxDecoration(
-                  color: Colors.greenAccent,
+                  color: AppColors.primaryColor,
                   shape: BoxShape.circle,
                 ),
                 child: const Icon(
@@ -357,28 +411,30 @@ class _ProfileScreenState extends State<ProfileScreen> {
       padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
       decoration: BoxDecoration(
         gradient: LinearGradient(
-          colors: [
-            Colors.greenAccent.withValues(alpha: 0.2),
-            Colors.greenAccent.withValues(alpha: 0.05),
-          ],
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
+          colors: [
+            AppColors.backgroundDarkAccent,
+            AppColors.primaryColor.withValues(alpha: 0.5),
+            AppColors.backgroundDarkAccent,
+          ],
+          stops: [0.7, 0.3, 0.7],
         ),
         borderRadius: BorderRadius.circular(30),
         border: Border.all(
-          color: Colors.greenAccent.withValues(alpha: 0.5),
+          color: AppColors.primaryColor.withValues(alpha: 0.5),
           width: 1.5,
         ),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(_getGoalIcon(goal), color: Colors.greenAccent, size: 18),
+          Icon(_getGoalIcon(goal), color: AppColors.primaryColor, size: 18),
           const SizedBox(width: 10),
           Text(
             _getGoalTranslation(goal).toUpperCase(),
             style: const TextStyle(
-              color: Colors.greenAccent,
+              color: AppColors.primaryColor,
               fontWeight: FontWeight.bold,
               fontSize: 12,
               letterSpacing: 1.1,
@@ -407,7 +463,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
       ),
       child: Row(
         children: [
-          Icon(icon, color: Colors.greenAccent, size: 22),
+          Icon(icon, color: AppColors.primaryColor, size: 22),
           const SizedBox(width: 15),
           Text(
             label,
@@ -468,13 +524,15 @@ class _ProfileScreenState extends State<ProfileScreen> {
       child: Container(
         padding: const EdgeInsets.symmetric(vertical: 18, horizontal: 16),
         decoration: BoxDecoration(
-          color: Colors.greenAccent.withValues(alpha: 0.02),
-          border: Border.all(color: Colors.greenAccent.withValues(alpha: 0.3)),
+          color: AppColors.primaryColor.withValues(alpha: 0.02),
+          border: Border.all(
+            color: AppColors.primaryColor.withValues(alpha: 0.3),
+          ),
           borderRadius: BorderRadius.circular(15),
         ),
         child: Row(
           children: [
-            Icon(icon, color: Colors.greenAccent),
+            Icon(icon, color: AppColors.primaryColor),
             const SizedBox(width: 15),
             Text(
               title,
@@ -486,7 +544,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
             const Spacer(),
             const Icon(
               Icons.arrow_forward_ios,
-              color: Colors.greenAccent,
+              color: AppColors.primaryColor,
               size: 16,
             ),
           ],
@@ -588,7 +646,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     Navigator.pop(context);
                   },
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.greenAccent,
+                    backgroundColor: AppColors.primaryColor,
                     foregroundColor: Colors.black,
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(15),

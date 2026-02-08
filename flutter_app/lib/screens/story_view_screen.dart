@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../constants/app_colors.dart';
 
 class StoryViewScreen extends StatefulWidget {
   final List<dynamic> stories;
@@ -118,7 +119,7 @@ class _StoryViewScreenState extends State<StoryViewScreen>
                         if (progress == null) return child;
                         return const Center(
                           child: CircularProgressIndicator(
-                            color: Colors.greenAccent,
+                            color: AppColors.primaryColor,
                           ),
                         );
                       },

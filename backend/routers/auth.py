@@ -24,14 +24,16 @@ async def register(data: RegisterSchema, service: NutritionService = Depends(get
             try: age = (datetime.now() - datetime.strptime(dob.split('T')[0], "%Y-%m-%d")).days // 365
             except: pass
 
-        tdee = service.calculate_bmr_tdee(data.profile.weight, data.profile.height, age, data.profile.gender, "Сидячий")
-        goal_key = "lose" if "lose" in data.profile.goal.lower() else "gain" if "gain" in data.profile.goal.lower() else "maintain"
-        
         db_profile = {
-            "id": user_id, "email": data.email, "name": data.profile.name or data.email.split('@')[0],
-            "weight": int(data.profile.weight), "height": int(data.profile.height), "age": int(age),
-            "gender": data.profile.gender, "goal": goal_key,
-            "daily_calories_target": max(1200, int(tdee)), "daily_water_target": int(data.profile.weight * 35),
+            "id": user_id, 
+            "email": data.email, 
+            "name": data.profile.name or data.email.split('@')[0],
+            "weight": float(data.profile.weight),      # ✅ float для ваги
+            "height": int(data.profile.height),        # ✅ int для росту
+            "age": int(age),
+            "gender": data.profile.gender,
+            "goal": data.profile.goal,
+            "activity_level": data.profile.activity,   # ✅ ваш новий рядок
             "created_at": get_now_poland().isoformat()
         }
         service.user_repo.create_profile(db_profile)

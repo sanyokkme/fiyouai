@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'package:shimmer/shimmer.dart'; // Переконайся, що пакет shimmer є в pubspec.yaml
 import '../../services/auth_service.dart';
+import '../constants/app_colors.dart';
 
 class FoodSearchScreen extends StatefulWidget {
   const FoodSearchScreen({super.key});
@@ -55,9 +56,7 @@ class _FoodSearchScreenState extends State<FoodSearchScreen> {
 
     try {
       final res = await http.get(
-        Uri.parse(
-          '${AuthService.baseUrl}/search_food?query=$query',
-        ),
+        Uri.parse('${AuthService.baseUrl}/search_food?query=$query'),
       );
 
       if (res.statusCode == 200) {
@@ -148,149 +147,220 @@ class _FoodSearchScreenState extends State<FoodSearchScreen> {
     }
   }
 
-  void _showWeightDialog(Map<String, dynamic> product) {
-    final weightController = TextEditingController(text: "100");
+  Future<bool> _addCustomProductToDatabase({
+    required String name,
+    required int calories,
+    required double protein,
+    required double fat,
+    required double carbs,
+  }) async {
+    try {
+      final res = await http.post(
+        Uri.parse('${AuthService.baseUrl}/add_custom_food_product'),
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode({
+          'name': name,
+          'calories': calories,
+          'protein': protein,
+          'fat': fat,
+          'carbs': carbs,
+        }),
+      );
 
-    // Змінна для стану завантаження всередині діалогу
+      if (res.statusCode == 200) {
+        return true;
+      } else {
+        debugPrint('Add custom product failed: ${res.statusCode}');
+        return false;
+      }
+    } catch (e) {
+      debugPrint('Add custom product error: $e');
+      return false;
+    }
+  }
+
+  void _showAddCustomProductDialog() {
+    final nameController = TextEditingController();
+    final caloriesController = TextEditingController();
+    final proteinController = TextEditingController(text: '0');
+    final fatController = TextEditingController(text: '0');
+    final carbsController = TextEditingController(text: '0');
     bool isAdding = false;
 
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
-      backgroundColor: const Color(0xFF1A1A1A),
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(25)),
-      ),
-      builder: (ctx) => StatefulBuilder(
-        // Додаємо це, щоб оновлювати кнопку
-        builder: (context, setModalState) {
-          return Padding(
-            padding: EdgeInsets.only(
-              bottom: MediaQuery.of(ctx).viewInsets.bottom + 20,
-              top: 20,
-              left: 20,
-              right: 20,
-            ),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      backgroundColor: Colors.transparent,
+      builder: (ctx) => Container(
+        decoration: BoxDecoration(
+          color: AppColors.backgroundDark,
+          borderRadius: const BorderRadius.vertical(top: Radius.circular(25)),
+          border: Border.all(color: Colors.white10),
+        ),
+        child: StatefulBuilder(
+          builder: (context, setModalState) {
+            return Padding(
+              padding: EdgeInsets.only(
+                bottom: MediaQuery.of(ctx).viewInsets.bottom + 20,
+                top: 20,
+                left: 20,
+                right: 20,
+              ),
+              child: SingleChildScrollView(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Expanded(
-                      child: Text(
-                        product['name'],
-                        style: const TextStyle(
-                          color: Colors.white,
-                          fontSize: 22,
-                          fontWeight: FontWeight.bold,
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        const Text(
+                          'Додати свій продукт',
+                          style: TextStyle(
+                            color: Colors.white,
+                            fontSize: 22,
+                            fontWeight: FontWeight.bold,
+                          ),
                         ),
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                    ),
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 10,
-                        vertical: 5,
-                      ),
-                      decoration: BoxDecoration(
-                        color: Colors.greenAccent.withOpacity(0.2),
-                        borderRadius: BorderRadius.circular(10),
-                      ),
-                      child: Text(
-                        "${product['calories']} ккал / 100г",
-                        style: const TextStyle(
-                          color: Colors.greenAccent,
-                          fontWeight: FontWeight.bold,
-                          fontSize: 12,
+                        IconButton(
+                          onPressed: () => Navigator.pop(ctx),
+                          icon: const Icon(Icons.close, color: Colors.white54),
                         ),
-                      ),
+                      ],
                     ),
-                  ],
-                ),
-                const SizedBox(height: 20),
-                const Text(
-                  "Вкажіть вагу (грами):",
-                  style: TextStyle(color: Colors.white54),
-                ),
-                const SizedBox(height: 10),
-                TextField(
-                  controller: weightController,
-                  keyboardType: TextInputType.number,
-                  autofocus: true,
-                  style: const TextStyle(
-                    color: Colors.white,
-                    fontSize: 24,
-                    fontWeight: FontWeight.bold,
-                  ),
-                  decoration: InputDecoration(
-                    suffixText: "г",
-                    suffixStyle: const TextStyle(color: Colors.white54),
-                    filled: true,
-                    fillColor: Colors.white.withOpacity(0.05),
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(15),
-                      borderSide: BorderSide.none,
+                    const SizedBox(height: 20),
+                    _buildTextField(
+                      controller: nameController,
+                      label: 'Назва продукту',
+                      hint: 'Наприклад: Банан',
+                      keyboardType: TextInputType.text,
                     ),
-                    focusedBorder: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(15),
-                      borderSide: const BorderSide(color: Colors.greenAccent),
+                    const SizedBox(height: 15),
+                    _buildTextField(
+                      controller: caloriesController,
+                      label: 'Калорії (на 100г)',
+                      hint: '0',
+                      keyboardType: TextInputType.number,
                     ),
-                  ),
-                ),
-                const SizedBox(height: 20),
-                Row(
-                  children: [
-                    Expanded(
-                      child: TextButton(
-                        onPressed: isAdding ? null : () => Navigator.pop(ctx),
-                        style: TextButton.styleFrom(
-                          padding: const EdgeInsets.symmetric(vertical: 15),
+                    const SizedBox(height: 15),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: _buildTextField(
+                            controller: proteinController,
+                            label: 'Білки (г)',
+                            hint: '0',
+                            keyboardType: const TextInputType.numberWithOptions(
+                              decimal: true,
+                            ),
+                          ),
                         ),
-                        child: const Text(
-                          "Скасувати",
-                          style: TextStyle(color: Colors.white54),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: _buildTextField(
+                            controller: fatController,
+                            label: 'Жири (г)',
+                            hint: '0',
+                            keyboardType: const TextInputType.numberWithOptions(
+                              decimal: true,
+                            ),
+                          ),
                         ),
-                      ),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: _buildTextField(
+                            controller: carbsController,
+                            label: 'Вуглеводи (г)',
+                            hint: '0',
+                            keyboardType: const TextInputType.numberWithOptions(
+                              decimal: true,
+                            ),
+                          ),
+                        ),
+                      ],
                     ),
-                    const SizedBox(width: 10),
-                    Expanded(
+                    const SizedBox(height: 25),
+                    SizedBox(
+                      width: double.infinity,
                       child: ElevatedButton(
                         onPressed: isAdding
                             ? null
                             : () async {
-                                // 1. Блокуємо кнопку
+                                if (nameController.text.trim().isEmpty) {
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    const SnackBar(
+                                      content: Text('Введіть назву продукту'),
+                                      backgroundColor: Colors.red,
+                                    ),
+                                  );
+                                  return;
+                                }
+                                if (caloriesController.text.trim().isEmpty) {
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    const SnackBar(
+                                      content: Text('Введіть калорії'),
+                                      backgroundColor: Colors.red,
+                                    ),
+                                  );
+                                  return;
+                                }
+
                                 setModalState(() => isAdding = true);
 
-                                int weight =
-                                    int.tryParse(weightController.text) ?? 100;
+                                final success =
+                                    await _addCustomProductToDatabase(
+                                      name: nameController.text.trim(),
+                                      calories:
+                                          int.tryParse(
+                                            caloriesController.text,
+                                          ) ??
+                                          0,
+                                      protein:
+                                          double.tryParse(
+                                            proteinController.text,
+                                          ) ??
+                                          0,
+                                      fat:
+                                          double.tryParse(fatController.text) ??
+                                          0,
+                                      carbs:
+                                          double.tryParse(
+                                            carbsController.text,
+                                          ) ??
+                                          0,
+                                    );
 
-                                // 2. Виконуємо запит
-                                bool success = await _addFood(product, weight);
-
-                                // 3. Розблоковуємо
                                 setModalState(() => isAdding = false);
 
-                                // 4. Якщо успіх - закриваємо і показуємо SnackBar
                                 if (success && mounted) {
                                   Navigator.pop(ctx);
-                                  // Повертаємось з результатом true, щоб оновити Home
-                                  Navigator.pop(context, true);
                                   ScaffoldMessenger.of(context).showSnackBar(
                                     SnackBar(
                                       content: Text(
-                                        "Успішно додано: ${product['name']}",
+                                        'Продукт "${nameController.text.trim()}" додано!',
                                       ),
                                       backgroundColor: Colors.green,
+                                    ),
+                                  );
+                                  // Refresh search results
+                                  if (_searchController.text.isNotEmpty) {
+                                    _performSearch(_searchController.text);
+                                  }
+                                } else if (mounted) {
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    const SnackBar(
+                                      content: Text(
+                                        'Помилка додавання продукту',
+                                      ),
+                                      backgroundColor: Colors.red,
                                     ),
                                   );
                                 }
                               },
                         style: ElevatedButton.styleFrom(
-                          backgroundColor: Colors.greenAccent,
-                          disabledBackgroundColor: Colors.greenAccent
-                              .withOpacity(0.5),
+                          backgroundColor: AppColors.primaryColor,
+                          disabledBackgroundColor: AppColors.primaryColor
+                              .withValues(alpha: 0.5),
                           foregroundColor: Colors.black,
                           padding: const EdgeInsets.symmetric(vertical: 15),
                           shape: RoundedRectangleBorder(
@@ -307,7 +377,7 @@ class _FoodSearchScreenState extends State<FoodSearchScreen> {
                                 ),
                               )
                             : const Text(
-                                "Додати",
+                                'Зберегти продукт',
                                 style: TextStyle(
                                   fontSize: 16,
                                   fontWeight: FontWeight.bold,
@@ -317,10 +387,254 @@ class _FoodSearchScreenState extends State<FoodSearchScreen> {
                     ),
                   ],
                 ),
-              ],
+              ),
+            );
+          },
+        ),
+      ),
+    );
+  }
+
+  Widget _buildTextField({
+    required TextEditingController controller,
+    required String label,
+    required String hint,
+    required TextInputType keyboardType,
+  }) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          label,
+          style: const TextStyle(
+            color: Colors.white70,
+            fontSize: 13,
+            fontWeight: FontWeight.w500,
+          ),
+        ),
+        const SizedBox(height: 6),
+        TextField(
+          controller: controller,
+          keyboardType: keyboardType,
+          style: const TextStyle(color: Colors.white, fontSize: 16),
+          decoration: InputDecoration(
+            hintText: hint,
+            hintStyle: const TextStyle(color: Colors.white38),
+            filled: true,
+            fillColor: Colors.white.withValues(alpha: 0.05),
+            border: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(12),
+              borderSide: const BorderSide(color: Colors.white10),
             ),
-          );
-        },
+            enabledBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(12),
+              borderSide: const BorderSide(color: Colors.white10),
+            ),
+            focusedBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(12),
+              borderSide: const BorderSide(
+                color: AppColors.primaryColor,
+                width: 1.5,
+              ),
+            ),
+            contentPadding: const EdgeInsets.symmetric(
+              horizontal: 15,
+              vertical: 12,
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  void _showWeightDialog(Map<String, dynamic> product) {
+    final weightController = TextEditingController(text: "100");
+
+    // Змінна для стану завантаження всередині діалогу
+    bool isAdding = false;
+
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (ctx) => Container(
+        decoration: BoxDecoration(
+          color: AppColors.backgroundDark,
+          borderRadius: const BorderRadius.vertical(top: Radius.circular(25)),
+          border: Border.all(color: Colors.white10),
+        ),
+        child: StatefulBuilder(
+          // Додаємо це, щоб оновлювати кнопку
+          builder: (context, setModalState) {
+            return Padding(
+              padding: EdgeInsets.only(
+                bottom: MediaQuery.of(ctx).viewInsets.bottom + 20,
+                top: 20,
+                left: 20,
+                right: 20,
+              ),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Expanded(
+                        child: Text(
+                          product['name'],
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 22,
+                            fontWeight: FontWeight.bold,
+                          ),
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 10,
+                          vertical: 5,
+                        ),
+                        decoration: BoxDecoration(
+                          color: AppColors.primaryColor.withValues(alpha: 0.2),
+                          borderRadius: BorderRadius.circular(10),
+                        ),
+                        child: Text(
+                          "${product['calories']} ккал / 100г",
+                          style: const TextStyle(
+                            color: AppColors.primaryColor,
+                            fontWeight: FontWeight.bold,
+                            fontSize: 12,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 20),
+                  const Text(
+                    "Вкажіть вагу (грами):",
+                    style: TextStyle(color: Colors.white54),
+                  ),
+                  const SizedBox(height: 10),
+                  TextField(
+                    controller: weightController,
+                    keyboardType: TextInputType.number,
+                    autofocus: true,
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 24,
+                      fontWeight: FontWeight.bold,
+                    ),
+                    decoration: InputDecoration(
+                      suffixText: "г",
+                      suffixStyle: const TextStyle(color: Colors.white54),
+                      filled: true,
+                      fillColor: Colors.white.withValues(alpha: 0.05),
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(15),
+                        borderSide: const BorderSide(color: Colors.white10),
+                      ),
+                      enabledBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(15),
+                        borderSide: const BorderSide(color: Colors.white10),
+                      ),
+                      focusedBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(15),
+                        borderSide: const BorderSide(
+                          color: AppColors.primaryColor,
+                          width: 1.5,
+                        ),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 20),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: TextButton(
+                          onPressed: isAdding ? null : () => Navigator.pop(ctx),
+                          style: TextButton.styleFrom(
+                            padding: const EdgeInsets.symmetric(vertical: 15),
+                          ),
+                          child: const Text(
+                            "Скасувати",
+                            style: TextStyle(color: Colors.white54),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: ElevatedButton(
+                          onPressed: isAdding
+                              ? null
+                              : () async {
+                                  // 1. Блокуємо кнопку
+                                  setModalState(() => isAdding = true);
+
+                                  int weight =
+                                      int.tryParse(weightController.text) ??
+                                      100;
+
+                                  // 2. Виконуємо запит
+                                  bool success = await _addFood(
+                                    product,
+                                    weight,
+                                  );
+
+                                  // 3. Розблоковуємо
+                                  setModalState(() => isAdding = false);
+
+                                  // 4. Якщо успіх - закриваємо і показуємо SnackBar
+                                  if (success && mounted) {
+                                    Navigator.pop(ctx);
+                                    // Повертаємось з результатом true, щоб оновити Home
+                                    Navigator.pop(context, true);
+                                    ScaffoldMessenger.of(context).showSnackBar(
+                                      SnackBar(
+                                        content: Text(
+                                          "Успішно додано: ${product['name']}",
+                                        ),
+                                        backgroundColor: Colors.green,
+                                      ),
+                                    );
+                                  }
+                                },
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: AppColors.primaryColor,
+                            disabledBackgroundColor: AppColors.primaryColor
+                                .withValues(alpha: 0.5),
+                            foregroundColor: Colors.black,
+                            padding: const EdgeInsets.symmetric(vertical: 15),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(15),
+                            ),
+                          ),
+                          child: isAdding
+                              ? const SizedBox(
+                                  height: 20,
+                                  width: 20,
+                                  child: CircularProgressIndicator(
+                                    color: Colors.black,
+                                    strokeWidth: 2,
+                                  ),
+                                )
+                              : const Text(
+                                  "Додати",
+                                  style: TextStyle(
+                                    fontSize: 16,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            );
+          },
+        ),
       ),
     );
   }
@@ -334,8 +648,8 @@ class _FoodSearchScreenState extends State<FoodSearchScreen> {
       itemBuilder: (_, __) => Padding(
         padding: const EdgeInsets.only(bottom: 12),
         child: Shimmer.fromColors(
-          baseColor: Colors.white.withOpacity(0.05),
-          highlightColor: Colors.white.withOpacity(0.1),
+          baseColor: Colors.white.withValues(alpha: 0.05),
+          highlightColor: Colors.white.withValues(alpha: 0.1),
           child: Container(
             height: 70,
             decoration: BoxDecoration(
@@ -353,11 +667,15 @@ class _FoodSearchScreenState extends State<FoodSearchScreen> {
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Icon(Icons.search, size: 80, color: Colors.white.withOpacity(0.1)),
+          Icon(
+            Icons.search,
+            size: 80,
+            color: Colors.white.withValues(alpha: 0.1),
+          ),
           const SizedBox(height: 15),
           Text(
             "Введіть назву продукту",
-            style: TextStyle(color: Colors.white.withOpacity(0.3)),
+            style: TextStyle(color: Colors.white.withValues(alpha: 0.3)),
           ),
         ],
       ),
@@ -371,13 +689,13 @@ class _FoodSearchScreenState extends State<FoodSearchScreen> {
     return Container(
       margin: const EdgeInsets.only(bottom: 10),
       decoration: BoxDecoration(
-        color: Colors.white.withOpacity(0.05),
+        color: Colors.white.withValues(alpha: 0.05),
         borderRadius: BorderRadius.circular(16),
         border: Border.all(
           // Локальні продукти підсвічуємо ледь помітним зеленим, глобальні - прозорим
           color: isGlobal
               ? Colors.transparent
-              : Colors.greenAccent.withOpacity(0.2),
+              : AppColors.primaryColor.withValues(alpha: 0.2),
         ),
       ),
       child: Material(
@@ -394,18 +712,20 @@ class _FoodSearchScreenState extends State<FoodSearchScreen> {
                   padding: const EdgeInsets.all(10),
                   decoration: BoxDecoration(
                     color: isGlobal
-                        ? Colors.blueAccent.withOpacity(
-                            0.1,
+                        ? Colors.blueAccent.withValues(
+                            alpha: 0.1,
                           ) // Синій для інтернету
-                        : Colors.greenAccent.withOpacity(
-                            0.1,
+                        : AppColors.primaryColor.withValues(
+                            alpha: 0.1,
                           ), // Зелений для своїх
                     shape: BoxShape.circle,
                   ),
                   child: Icon(
                     // Різні іконки
                     isGlobal ? Icons.public : Icons.storage,
-                    color: isGlobal ? Colors.blueAccent : Colors.greenAccent,
+                    color: isGlobal
+                        ? Colors.blueAccent
+                        : AppColors.primaryColor,
                     size: 20,
                   ),
                 ),
@@ -436,7 +756,7 @@ class _FoodSearchScreenState extends State<FoodSearchScreen> {
                                 vertical: 1,
                               ),
                               decoration: BoxDecoration(
-                                color: Colors.blueAccent.withOpacity(0.2),
+                                color: Colors.blueAccent.withValues(alpha: 0.2),
                                 borderRadius: BorderRadius.circular(4),
                               ),
                               child: const Text(
@@ -460,7 +780,7 @@ class _FoodSearchScreenState extends State<FoodSearchScreen> {
                           Text(
                             "Б:${item['protein']} Ж:${item['fat']} В:${item['carbs']}",
                             style: TextStyle(
-                              color: Colors.white.withOpacity(0.4),
+                              color: Colors.white.withValues(alpha: 0.4),
                               fontSize: 11,
                             ),
                           ),
@@ -473,11 +793,11 @@ class _FoodSearchScreenState extends State<FoodSearchScreen> {
                 // Кнопка "+"
                 Container(
                   decoration: BoxDecoration(
-                    color: Colors.white.withOpacity(0.1),
+                    color: Colors.white.withValues(alpha: 0.1),
                     borderRadius: BorderRadius.circular(10),
                   ),
                   child: IconButton(
-                    icon: const Icon(Icons.add, color: Colors.greenAccent),
+                    icon: const Icon(Icons.add, color: AppColors.primaryColor),
                     onPressed: () => _showWeightDialog(item),
                     constraints: const BoxConstraints(),
                     padding: const EdgeInsets.all(8),
@@ -494,7 +814,7 @@ class _FoodSearchScreenState extends State<FoodSearchScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFF0F0F0F),
+      backgroundColor: AppColors.backgroundDark,
       body: SafeArea(
         child: Column(
           children: [
@@ -512,8 +832,9 @@ class _FoodSearchScreenState extends State<FoodSearchScreen> {
                       padding: const EdgeInsets.symmetric(horizontal: 15),
                       height: 50,
                       decoration: BoxDecoration(
-                        color: Colors.white.withOpacity(0.08),
+                        color: Colors.white.withValues(alpha: 0.05),
                         borderRadius: BorderRadius.circular(15),
+                        border: Border.all(color: Colors.white10),
                       ),
                       child: Row(
                         children: [
@@ -551,6 +872,35 @@ class _FoodSearchScreenState extends State<FoodSearchScreen> {
                 ],
               ),
             ),
+
+            // "Не знайшли продукту?" link - показується коли результатів не знайдено
+            if (_searchResults.isEmpty || _searchResults.isNotEmpty &&
+                !_isLoading &&
+                _searchController.text.isNotEmpty)
+              Padding(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 16,
+                  vertical: 10,
+                ),
+                child: Center(
+                  child: TextButton.icon(
+                    onPressed: _showAddCustomProductDialog,
+                    icon: const Icon(
+                      Icons.add_circle_outline,
+                      color: AppColors.primaryColor,
+                      size: 18,
+                    ),
+                    label: const Text(
+                      'Не знайшли продукту?',
+                      style: TextStyle(
+                        color: AppColors.primaryColor,
+                        fontSize: 14,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                  ),
+                ),
+              ),
 
             // Список результатів
             Expanded(

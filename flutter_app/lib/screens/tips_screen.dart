@@ -3,6 +3,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:shimmer/shimmer.dart';
 import 'dart:convert';
 import '../services/auth_service.dart';
+import '../constants/app_colors.dart';
 import '../services/data_manager.dart'; // Імпорт менеджера
 
 class TipsScreen extends StatefulWidget {
@@ -90,58 +91,108 @@ class _TipsScreenState extends State<TipsScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFF0F0F0F),
-      appBar: AppBar(
-        title: const Text(
-          "AI Поради",
-          style: TextStyle(fontWeight: FontWeight.bold),
-        ),
-        backgroundColor: Colors.transparent,
-        elevation: 0,
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back_ios, color: Colors.white),
-          onPressed: () => Navigator.pop(context),
-        ),
-      ),
-      body: _isLoading
-          ? _buildSkeleton()
-          : SingleChildScrollView(
-              padding: const EdgeInsets.all(24),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  _buildHeaderCard(),
-                  const SizedBox(height: 30),
-                  const Text(
-                    "Персональні рекомендації",
-                    style: TextStyle(
-                      color: Colors.white,
-                      fontSize: 20,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                  const SizedBox(height: 15),
-                  // Виводимо список порад
-                  ...(_aiData?['tips'] as List? ?? []).map(
-                    (tip) => _buildTipCard(tip),
-                  ),
-
-                  // Повідомлення для користувача
-                  const SizedBox(height: 40),
-                  Center(
-                    child: Text(
-                      "Нові поради з'являться при наступному вході в додаток",
-                      textAlign: TextAlign.center,
-                      style: TextStyle(
-                        color: Colors.white.withValues(alpha: 0.3),
-                        fontSize: 12,
+      backgroundColor: AppColors.backgroundDark,
+      body: AppColors.buildBackgroundWithBlurSpots(
+        child: SafeArea(
+          child: _isLoading
+              ? Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(25, 20, 25, 10),
+                      child: Row(
+                        children: [
+                          IconButton(
+                            icon: const Icon(
+                              Icons.arrow_back_ios,
+                              color: Colors.white,
+                              size: 20,
+                            ),
+                            onPressed: () => Navigator.pop(context),
+                          ),
+                          const Text(
+                            'AI Поради',
+                            style: TextStyle(
+                              fontSize: 32,
+                              fontWeight: FontWeight.bold,
+                              color: Colors.white,
+                            ),
+                          ),
+                        ],
                       ),
                     ),
-                  ),
-                  const SizedBox(height: 40),
-                ],
-              ),
-            ),
+                    Expanded(child: _buildSkeleton()),
+                  ],
+                )
+              : Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(25, 20, 25, 10),
+                      child: Row(
+                        children: [
+                          IconButton(
+                            icon: const Icon(
+                              Icons.arrow_back_ios,
+                              color: Colors.white,
+                              size: 20,
+                            ),
+                            onPressed: () => Navigator.pop(context),
+                          ),
+                          const Text(
+                            'AI Поради',
+                            style: TextStyle(
+                              fontSize: 32,
+                              fontWeight: FontWeight.bold,
+                              color: Colors.white,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    Expanded(
+                      child: SingleChildScrollView(
+                        padding: const EdgeInsets.all(24),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            _buildHeaderCard(),
+                            const SizedBox(height: 30),
+                            const Text(
+                              "Персональні рекомендації",
+                              style: TextStyle(
+                                color: Colors.white,
+                                fontSize: 20,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                            const SizedBox(height: 15),
+                            // Виводимо список порад
+                            ...(_aiData?['tips'] as List? ?? []).map(
+                              (tip) => _buildTipCard(tip),
+                            ),
+
+                            // Повідомлення для користувача
+                            const SizedBox(height: 40),
+                            Center(
+                              child: Text(
+                                "Нові поради з'являться при наступному вході в додаток",
+                                textAlign: TextAlign.center,
+                                style: TextStyle(
+                                  color: Colors.white.withValues(alpha: 0.3),
+                                  fontSize: 12,
+                                ),
+                              ),
+                            ),
+                            const SizedBox(height: 40),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+        ),
+      ),
     );
   }
 
@@ -151,18 +202,24 @@ class _TipsScreenState extends State<TipsScreen> {
       decoration: BoxDecoration(
         gradient: LinearGradient(
           colors: [
-            Colors.greenAccent.withValues(alpha: 0.2),
+            AppColors.primaryColor.withValues(alpha: 0.2),
             Colors.transparent,
           ],
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
         ),
         borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: Colors.greenAccent.withValues(alpha: 0.3)),
+        border: Border.all(
+          color: AppColors.primaryColor.withValues(alpha: 0.3),
+        ),
       ),
       child: Row(
         children: [
-          const Icon(Icons.auto_awesome, color: Colors.greenAccent, size: 40),
+          const Icon(
+            Icons.auto_awesome,
+            color: AppColors.primaryColor,
+            size: 40,
+          ),
           const SizedBox(width: 15),
           Expanded(
             child: Text(
@@ -195,7 +252,7 @@ class _TipsScreenState extends State<TipsScreen> {
           Text(
             tip['title'] ?? "",
             style: const TextStyle(
-              color: Colors.greenAccent,
+              color: AppColors.primaryColor,
               fontWeight: FontWeight.bold,
               fontSize: 16,
             ),

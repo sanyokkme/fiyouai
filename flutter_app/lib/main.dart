@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_app/services/notification_service.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -9,15 +10,18 @@ import 'screens/basic/login_screen.dart';
 import 'screens/basic/register_screen.dart';
 import 'screens/basic/home_screen.dart';
 import 'screens/basic/splash_screen.dart';
+import 'screens/basic/confirmation_screen.dart';
 import 'screens/camera_screen.dart';
 import 'screens/recipe_book_screen.dart';
 import 'screens/basic/profile_screen.dart';
 import 'screens/recipes_screen.dart';
 
-
 void main() async {
   // 1. Обов'язкова ініціалізація
   WidgetsFlutterBinding.ensureInitialized();
+  // Ініціалізація сповіщень
+  await NotificationService().init();
+  await NotificationService().requestPermissions();
 
   // 2. Ініціалізація камер
   initCameras().then((_) => debugPrint("Cameras initialized"));
@@ -74,6 +78,14 @@ class MyApp extends StatelessWidget {
           );
         }
 
+        // Обробка маршруту підтвердження з передачею даних
+        if (settings.name == '/confirmation') {
+          final args = settings.arguments as Map<String, dynamic>? ?? {};
+          return MaterialPageRoute(
+            builder: (context) => ConfirmationScreen(onboardingData: args),
+          );
+        }
+
         switch (settings.name) {
           case '/welcome':
             return MaterialPageRoute(builder: (_) => WelcomeScreen());
@@ -98,8 +110,7 @@ class MyApp extends StatelessWidget {
             return MaterialPageRoute(builder: (_) => SplashScreen());
           default:
             return MaterialPageRoute(
-              builder: (_) =>
-                  isLoggedIn ? HomeScreen() : WelcomeScreen(),
+              builder: (_) => isLoggedIn ? HomeScreen() : WelcomeScreen(),
             );
         }
       },

@@ -5,6 +5,7 @@ import 'package:camera/camera.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
 import '../services/auth_service.dart';
+import '../constants/app_colors.dart';
 
 // Глобальний список камер
 List<CameraDescription> cameras = [];
@@ -117,7 +118,7 @@ class _CameraScreenState extends State<CameraScreen> {
       return const Scaffold(
         backgroundColor: Colors.black,
         body: Center(
-          child: CircularProgressIndicator(color: Colors.greenAccent),
+          child: CircularProgressIndicator(color: AppColors.primaryColor),
         ),
       );
     }
@@ -130,7 +131,7 @@ class _CameraScreenState extends State<CameraScreen> {
 
           ColorFiltered(
             colorFilter: ColorFilter.mode(
-              Colors.black.withOpacity(0.7),
+              Colors.black.withValues(alpha: 0.7),
               BlendMode.srcOut,
             ),
             child: Stack(
@@ -162,7 +163,7 @@ class _CameraScreenState extends State<CameraScreen> {
               height: 260,
               width: 260,
               decoration: BoxDecoration(
-                border: Border.all(color: Colors.greenAccent, width: 2.5),
+                border: Border.all(color: AppColors.primaryColor, width: 2.5),
                 borderRadius: BorderRadius.circular(40),
               ),
             ),
@@ -250,7 +251,7 @@ class _LoadingOverlayState extends State<_LoadingOverlay> {
             mainAxisSize: MainAxisSize.min,
             children: [
               const CircularProgressIndicator(
-                color: Colors.greenAccent,
+                color: AppColors.primaryColor,
                 strokeWidth: 6,
               ),
               const SizedBox(height: 30),
@@ -379,7 +380,7 @@ class _AnalysisResultSheet extends StatelessWidget {
             style: const TextStyle(
               fontSize: 42,
               fontWeight: FontWeight.bold,
-              color: Colors.greenAccent,
+              color: AppColors.primaryColor,
             ),
           ),
           const SizedBox(height: 40),
@@ -401,7 +402,7 @@ class _AnalysisResultSheet extends StatelessWidget {
                 child: ElevatedButton(
                   onPressed: () => _addMealToDb(context),
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.greenAccent,
+                    backgroundColor: AppColors.primaryColor,
                     minimumSize: const Size(0, 60),
                   ),
                   child: const Text(

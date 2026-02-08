@@ -13,13 +13,24 @@ async def get_private_tips(current_user_id: str = Depends(get_current_user)):
 
 @router.post("/update")
 async def update_profile(data: ProfileUpdateSchema, service: NutritionService = Depends(get_nutrition_service)):
-    if is_invalid_user(data.user_id): return {"status": "error", "message": "User logout"}
-    update_data = {data.field: data.value}
-    if data.field in ['height', 'weight', 'age']: 
-        update_data[data.field] = int(float(data.value))
+    if is_invalid_user(data.user_id): 
+        return {"status": "error", "message": "User logout"}
     
-    service.user_repo.update_profile(data.user_id, update_data)
-    return {"status": "success", "updated_fields": update_data}
+    update_data = {data.field: data.value}
+    
+    if data.field in ['height', 'age']: 
+        update_data[data.field] = int(float(data.value))
+    elif data.field == 'weight':
+        update_data[data.field] = float(data.value)
+    
+    try:
+        service.user_repo.update_profile(data.user_id, update_data)
+        return {"status": "success", "updated_fields": update_data}
+    except Exception as e:
+        print(f"Database Error: {e}")
+        # Повертаємо 500, щоб Flutter зрозумів, що щось не так
+        raise HTTPException(status_code=500, detail=str(e))
+
 
 @router.get("/{user_id}")
 async def get_profile(user_id: str, service: NutritionService = Depends(get_nutrition_service)):

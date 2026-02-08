@@ -11,7 +11,12 @@ class UserRepository:
         return self.db.table("user_profiles").insert(profile_data).execute()
 
     def update_profile(self, user_id: str, data: dict):
+        """Оновлює профіль і повертає результат"""
         return self.db.table("user_profiles").update(data).eq("id", user_id).execute()
         
     def upsert_profile(self, data: dict):
         return self.db.table("user_profiles").upsert(data).execute()
+    
+    def update_user_profile(self, user_id: str, data: dict):
+        """Метод, який використовується для оновлення ваги"""
+        return self.db.table("user_profiles").update(data).eq("id", user_id).execute()
