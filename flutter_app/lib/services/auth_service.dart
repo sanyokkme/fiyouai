@@ -21,6 +21,7 @@ class AuthService {
       return _prodUrl;
     }
   }
+
   // Збереження даних сесії локально
   Future<void> _saveSession(String userId, String? token) async {
     final prefs = await SharedPreferences.getInstance();
@@ -124,6 +125,22 @@ class AuthService {
     } else {
       throw Exception(jsonDecode(res.body)['detail'] ?? 'Помилка входу');
     }
+  }
+
+  // ВИДАЛЕННЯ АКАУНТУ
+  Future<void> deleteAccount(String userId) async {
+    final response = await http.delete(
+      Uri.parse('$baseUrl/profile/delete?user_id=$userId'),
+      headers: {'Content-Type': 'application/json'},
+    );
+
+    if (response.statusCode != 200) {
+      final error = jsonDecode(response.body);
+      throw Exception(error['detail'] ?? 'Помилка видалення акаунту');
+    }
+
+    // Після успішного видалення на бекенді, очищаємо дані локально
+    await logout();
   }
 
   // ВИХІД

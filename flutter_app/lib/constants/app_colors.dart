@@ -2,36 +2,83 @@ import 'package:flutter/material.dart';
 
 /// Централізовані кольори додатку FiYou AI
 /// Змініть тут кольори для застосування по всьому додатку
+import 'package:flutter_app/services/theme_service.dart';
+
+/// Централізовані кольори додатку FiYou AI
+/// Тепер кольори динамічні і залежать від налаштувань користувача
 class AppColors {
-  // Основні кольори
-  static const Color primaryColor = Color.fromARGB(255, 34, 176, 133);
-  static const Color brightPrimaryColor = Color(0xFF12DCEF);
-  static const Color accentColor = Color(0xFF5DFFD9);
+  // --- DYNAMIC GETTERS ---
+  // Ці кольори тепер геттери, тому що вони залежать від ThemeService
 
-  // Фонові кольори
-  static const Color backgroundDark = Color(0xFF070707);
-  static const Color backgroundDarkAccent = Color(0xFF0D2818);
+  static Color get primaryColor => ThemeService().primaryColor;
 
-  // Текст
-  static const Color textWhite = Color(0xFFFFFFFF);
-  static const Color textGrey = Color(0xFFB0B0B0);
+  // Обчислюємо яскравішу версію основного кольору або використовуємо комплементарний
+  static Color get brightPrimaryColor => HSVColor.fromColor(
+    primaryColor,
+  ).withValue(1.0).withSaturation(0.8).toColor();
 
-  // Розмиті плями для фону
-  static const Color blurSpot1 = Color(0xFF1A4D2E); // Темно-зелена пляма
-  static const Color blurSpot2 = Color(0xFF33BC65); // Яскрава зелена пляма
+  // Accent color - світліша версія primary
+  static Color get accentColor => HSVColor.fromColor(
+    primaryColor,
+  ).withSaturation(0.5).withValue(1.0).toColor();
 
-  /// Темний фон з тонкими зеленими розмитими плямами
+  // Темний акцент фону - дуже темна версія primary
+  static Color get backgroundDarkAccent =>
+      Color.alphaBlend(primaryColor.withValues(alpha: 0.15), backgroundDark);
+
+  // --- STATIC CONSTANTS ---
+  // --- DYNAMIC BASE COLORS ---
+  // Кольори, які змінюються в залежності від теми (світла/темна)
+
+  static bool get isDark => ThemeService().isDarkMode;
+
+  static Color get backgroundDark => isDark
+      ? const Color(0xFF070707)
+      : const Color(0xFFF5F5F7); // Softer light background
+
+  static Color get textWhite =>
+      isDark ? const Color(0xFFFFFFFF) : const Color(0xFF000000);
+
+  static Color get textGrey =>
+      isDark ? const Color(0xFFB0B0B0) : const Color(0xFF505050);
+
+  // --- SEMANTIC COLORS ---
+  static Color get cardColor =>
+      isDark ? const Color(0xFF1E1E1E) : const Color(0xFFFFFFFF);
+
+  static Color get glassCardColor =>
+      isDark ? Colors.white.withValues(alpha: 0.05) : Colors.white;
+
+  static Color get iconColor =>
+      isDark ? const Color(0xFFFFFFFF) : const Color(0xFF000000);
+
+  static Color get textSecondary => isDark ? Colors.white54 : Colors.black54;
+
+  // --- DYNAMIC BLUR SPOTS ---
+  static Color get blurSpot1 => Color.alphaBlend(
+    primaryColor.withValues(alpha: isDark ? 0.3 : 0.2),
+    backgroundDark,
+  );
+
+  static Color get blurSpot2 =>
+      isDark ? primaryColor : primaryColor.withValues(alpha: 0.6);
+
+  /// Темний фон з тонкими розмитими плямами
   static BoxDecoration darkBackgroundWithBlur() {
-    return BoxDecoration(
-      color: backgroundDark,
-      // Можна додати image з blur ефектом або використовувати Stack з позиціонованими контейнерами
-    );
+    return BoxDecoration(color: backgroundDark);
   }
 
-  /// Віджет для фону з розмитими зеленими плямами
+  /// Віджет для фону з розмитими плямами відповідного кольору
   static Widget buildBackgroundWithBlurSpots({required Widget child}) {
+    // Отримуємо поточні кольори (вони будуть оновлені при перебудові віджета)
+    final color1 = blurSpot1;
+    final color2 = blurSpot2;
+    final accent = accentColor;
+    final bg = backgroundDark;
+    final dark = isDark;
+
     return Container(
-      decoration: const BoxDecoration(color: backgroundDark),
+      decoration: BoxDecoration(color: bg),
       child: Stack(
         children: [
           // Пляма 1 - зверху ліворуч
@@ -45,8 +92,8 @@ class AppColors {
                 shape: BoxShape.circle,
                 gradient: RadialGradient(
                   colors: [
-                    blurSpot1.withValues(alpha: 0.3),
-                    blurSpot1.withValues(alpha: 0.1),
+                    color1.withValues(alpha: dark ? 0.3 : 0.15),
+                    color1.withValues(alpha: dark ? 0.1 : 0.05),
                     Colors.transparent,
                   ],
                   stops: const [0.0, 0.5, 1.0],
@@ -66,8 +113,8 @@ class AppColors {
                 shape: BoxShape.circle,
                 gradient: RadialGradient(
                   colors: [
-                    blurSpot2.withValues(alpha: 0.2),
-                    blurSpot2.withValues(alpha: 0.05),
+                    color2.withValues(alpha: dark ? 0.2 : 0.1),
+                    color2.withValues(alpha: dark ? 0.05 : 0.02),
                     Colors.transparent,
                   ],
                   stops: const [0.0, 0.6, 1.0],
@@ -87,8 +134,8 @@ class AppColors {
                 shape: BoxShape.circle,
                 gradient: RadialGradient(
                   colors: [
-                    accentColor.withValues(alpha: 0.15),
-                    accentColor.withValues(alpha: 0.05),
+                    accent.withValues(alpha: dark ? 0.15 : 0.1),
+                    accent.withValues(alpha: dark ? 0.05 : 0.02),
                     Colors.transparent,
                   ],
                   stops: const [0.0, 0.5, 1.0],

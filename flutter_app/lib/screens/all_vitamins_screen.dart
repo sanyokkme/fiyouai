@@ -34,13 +34,13 @@ class AllVitaminsScreen extends StatelessWidget {
         backgroundColor: Colors.transparent,
         elevation: 0,
         leading: IconButton(
-          icon: const Icon(Icons.arrow_back, color: Colors.white),
+          icon: Icon(Icons.arrow_back, color: AppColors.textWhite),
           onPressed: () => Navigator.pop(context),
         ),
         title: Text(
           "Мої вітаміни",
           style: GoogleFonts.poppins(
-            color: Colors.white,
+            color: AppColors.textWhite,
             fontSize: 20,
             fontWeight: FontWeight.bold,
           ),
@@ -52,16 +52,19 @@ class AllVitaminsScreen extends StatelessWidget {
             ? Center(
                 child: Column(
                   mainAxisAlignment: MainAxisAlignment.center,
-                  children: const [
+                  children: [
                     Icon(
                       Icons.medication_outlined,
                       size: 80,
-                      color: Colors.white24,
+                      color: AppColors.textSecondary.withValues(alpha: 0.3),
                     ),
                     SizedBox(height: 20),
                     Text(
                       "Немає вітамінів",
-                      style: TextStyle(color: Colors.white54, fontSize: 18),
+                      style: TextStyle(
+                        color: AppColors.textSecondary,
+                        fontSize: 18,
+                      ),
                     ),
                   ],
                 ),
@@ -83,7 +86,7 @@ class AllVitaminsScreen extends StatelessWidget {
                     onLongPress: () {
                       showModalBottomSheet(
                         context: context,
-                        backgroundColor: const Color(0xFF1A1A1A),
+                        backgroundColor: AppColors.cardColor,
                         shape: const RoundedRectangleBorder(
                           borderRadius: BorderRadius.vertical(
                             top: Radius.circular(20),
@@ -134,9 +137,11 @@ class AllVitaminsScreen extends StatelessWidget {
                     child: Container(
                       padding: const EdgeInsets.all(15),
                       decoration: BoxDecoration(
-                        color: Colors.white.withValues(alpha: 0.05),
+                        color: AppColors.cardColor,
                         borderRadius: BorderRadius.circular(15),
-                        border: Border.all(color: Colors.white10),
+                        border: Border.all(
+                          color: AppColors.textWhite.withValues(alpha: 0.1),
+                        ),
                       ),
                       child: Row(
                         children: [
@@ -162,8 +167,8 @@ class AllVitaminsScreen extends StatelessWidget {
                                     Flexible(
                                       child: Text(
                                         vitamin['name'] ?? "No Name",
-                                        style: const TextStyle(
-                                          color: Colors.white,
+                                        style: TextStyle(
+                                          color: AppColors.textWhite,
                                           fontSize: 17,
                                           fontWeight: FontWeight.bold,
                                         ),
@@ -178,8 +183,8 @@ class AllVitaminsScreen extends StatelessWidget {
                                       Flexible(
                                         child: Text(
                                           "(${vitamin['brand']})",
-                                          style: const TextStyle(
-                                            color: Colors.white54,
+                                          style: TextStyle(
+                                            color: AppColors.textSecondary,
                                             fontSize: 15,
                                           ),
                                           overflow: TextOverflow.ellipsis,
@@ -195,8 +200,8 @@ class AllVitaminsScreen extends StatelessWidget {
                                         .isNotEmpty)
                                   Text(
                                     vitamin['description'].toString(),
-                                    style: const TextStyle(
-                                      color: Colors.white70,
+                                    style: TextStyle(
+                                      color: AppColors.textSecondary,
                                       fontSize: 13,
                                     ),
                                     maxLines: 2,
@@ -213,16 +218,17 @@ class AllVitaminsScreen extends StatelessWidget {
                                           (schedule) => Row(
                                             mainAxisSize: MainAxisSize.min,
                                             children: [
-                                              const Icon(
+                                              Icon(
                                                 Icons.access_time,
-                                                color: Colors.white38,
+                                                color: AppColors.textSecondary,
                                                 size: 12,
                                               ),
                                               const SizedBox(width: 4),
                                               Text(
                                                 "${schedule['time']} • ${schedule['dose'] ?? 'Не вказано'}",
-                                                style: const TextStyle(
-                                                  color: Colors.white38,
+                                                style: TextStyle(
+                                                  color:
+                                                      AppColors.textSecondary,
                                                   fontSize: 11,
                                                 ),
                                               ),
@@ -234,9 +240,11 @@ class AllVitaminsScreen extends StatelessWidget {
                               ],
                             ),
                           ),
-                          const Icon(
+                          Icon(
                             Icons.chevron_right,
-                            color: Colors.white24,
+                            color: AppColors.textSecondary.withValues(
+                              alpha: 0.3,
+                            ),
                             size: 20,
                           ),
                         ],

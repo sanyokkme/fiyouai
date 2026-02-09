@@ -189,7 +189,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                   const SizedBox(height: 40),
 
                   _isLoading
-                      ? const Center(
+                      ? Center(
                           child: CircularProgressIndicator(
                             color: AppColors.primaryColor,
                           ),

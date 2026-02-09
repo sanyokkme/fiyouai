@@ -28,8 +28,11 @@ class UserProfileSchema(BaseModel):
     weight: float = 70.0
     height: float = 170.0
     gender: str = "Чоловік"
-    activity: str = "Сидячий"
+    activity_level: str = "Сидячий"
     goal: str = "Підтримка ваги"
+    target_weight: Optional[float] = None  # ✅ ДОДАНО
+    weekly_change_goal: Optional[float] = None  # ✅ ДОДАНО e.g. -0.5
+    estimated_end_date: Optional[str] = None  # ✅ ДОДАНО e.g. "2024-05-01"
 
 class RegisterSchema(BaseModel):
     email: str
@@ -56,7 +59,7 @@ class ProfileSetupSchema(BaseModel):
     age: int
     gender: str
     goal: str
-    activity: str  # ✅ ДОДАНО
+    activity_level: str  # ✅ ДОДАНО
     dob: str       # Якщо потрібно
 
 class WaterLogSchema(BaseModel):
@@ -117,6 +120,11 @@ class AddFromRecipeSchema(BaseModel):
     recipe: Dict[str, Any]
 
 class UpdatePasswordSchema(BaseModel):
+    password: str
+
+class ChangeEmailSchema(BaseModel):
+    user_id: str
+    new_email: str
     password: str
 
 class VitaminSchema(BaseModel):

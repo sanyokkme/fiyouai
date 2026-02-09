@@ -48,27 +48,8 @@ class _ConfirmationScreenState extends State<ConfirmationScreen>
     if (!mounted) return;
 
     // Navigate with fade transition
-    Navigator.of(context).pushReplacement(
-      PageRouteBuilder(
-        pageBuilder: (context, animation, secondaryAnimation) {
-          // Import home screen dynamically or use named route
-          return FadeTransition(
-            opacity: animation,
-            child: Navigator(
-              onGenerateRoute: (settings) {
-                return MaterialPageRoute(
-                  builder: (_) => const SizedBox(), // Placeholder
-                );
-              },
-            ),
-          );
-        },
-        transitionDuration: const Duration(milliseconds: 500),
-      ),
-    );
-
-    // Fallback to named route
-    Navigator.pushNamedAndRemoveUntil(context, '/home', (route) => false);
+    // Navigate with fade transition to MainScreen
+    Navigator.of(context).pushNamedAndRemoveUntil('/home', (route) => false);
   }
 
   void _onPressStart() {
@@ -235,17 +216,13 @@ class _ConfirmationScreenState extends State<ConfirmationScreen>
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
             // Success icon
-            const Icon(
-              Icons.check_circle,
-              size: 100,
-              color: AppColors.primaryColor,
-            ),
+            Icon(Icons.check_circle, size: 100, color: AppColors.primaryColor),
             const SizedBox(height: 30),
 
             // Completion message
             RichText(
               textAlign: TextAlign.center,
-              text: const TextSpan(
+              text: TextSpan(
                 children: [
                   TextSpan(
                     text: 'Вітаємо в ',

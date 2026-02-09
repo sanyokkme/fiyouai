@@ -12,15 +12,9 @@ import '../../services/data_manager.dart';
 import '../../services/auth_service.dart';
 import '../../services/notification_service.dart';
 import '../../constants/app_colors.dart';
-
-import 'package:flutter_app/screens/basic/profile_screen.dart';
-import 'package:flutter_app/screens/camera_screen.dart';
-import 'package:flutter_app/screens/analytics_screen.dart';
-import 'package:flutter_app/screens/recipes_screen.dart';
-import 'package:flutter_app/screens/tips_screen.dart';
+import 'package:flutter_app/widgets/weight_update_sheet.dart';
 import 'package:flutter_app/screens/story_view_screen.dart';
 import 'package:flutter_app/screens/all_vitamins_screen.dart';
-import 'package:flutter_app/screens/food_search_screen.dart';
 
 bool hasPlayedConfettiGlobal = false;
 
@@ -28,16 +22,20 @@ class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
 
   @override
-  State<HomeScreen> createState() => _HomeScreenState();
+  State<HomeScreen> createState() => HomeScreenState();
 }
 
-class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
+class HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   Map<String, dynamic>? _status;
   List<dynamic> _vitamins = [];
   bool _isLoading = true;
   late ConfettiController _confettiController;
   late PageController _pageController;
   String _greetingText = "Привіт!";
+
+  // --- WEEKLY CALENDAR STATE ---
+  DateTime _selectedDate = DateTime.now();
+  final Map<String, dynamic> _historyData = {}; // Key: 'yyyy-MM-dd'
 
   Timer? _pollingTimer;
   bool _isFirstNetworkLoad = true;
@@ -55,6 +53,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     _requestNotificationPermissions();
 
     _fetchStatus();
+    _fetchHistory(); // Fetch historical data
     _fetchVitamins();
 
     // Перевірка чи це перший вхід за день і показ діалогу при потребі
@@ -169,6 +168,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
         await prefs.setString('cached_status_$userId', res.body);
 
         if (mounted) {
+          bool wasFirstLoad = _isFirstNetworkLoad;
           setState(() {
             _status = newData;
             _isLoading = false;
@@ -181,7 +181,11 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
           bool foodMet =
               ((newData['eaten'] ?? 0) >= (newData['target'] ?? 2000)) &&
               ((newData['eaten'] ?? 0) > 0);
-          if ((waterMet || foodMet) && !hasPlayedConfettiGlobal) {
+
+          // Confetti plays only if it's NOT the first load, goal is met, and hasn't played yet this session
+          if (!wasFirstLoad &&
+              (waterMet || foodMet) &&
+              !hasPlayedConfettiGlobal) {
             _confettiController.play();
             hasPlayedConfettiGlobal = true;
           }
@@ -274,12 +278,12 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     );
   }
 
-  Future<void> _addWater() async {
+  Future<void> addWater([int amount = 250]) async {
     try {
       final userId = await AuthService.getStoredUserId();
       final String timestamp = DateTime.now().toIso8601String();
       if (_status != null) {
-        setState(() => _status!['water'] = (_status!['water'] ?? 0) + 250);
+        setState(() => _status!['water'] = (_status!['water'] ?? 0) + amount);
       }
 
       final res = await http.post(
@@ -287,7 +291,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
         headers: {'Content-Type': 'application/json'},
         body: jsonEncode({
           "user_id": userId,
-          "amount": 250,
+          "amount": amount,
           "created_at": timestamp,
         }),
       );
@@ -297,49 +301,280 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     }
   }
 
-  Future<void> _updateWeight(double newWeight) async {
+  Future<void> _fetchHistory() async {
+    final userId = await AuthService.getStoredUserId();
+    if (userId == null) return;
+
     try {
-      final userId = await AuthService.getStoredUserId();
-      if (userId == null) return;
-
-      setState(() {
-        if (_status != null) _status!['weight'] = newWeight;
-      });
-
-      final prefs = await SharedPreferences.getInstance();
-      if (_status != null) {
-        prefs.setString('cached_status_$userId', jsonEncode(_status));
-        String? cachedProfile = prefs.getString('cached_profile_$userId');
-        if (cachedProfile != null) {
-          var profileData = jsonDecode(cachedProfile);
-          profileData['weight'] = newWeight;
-          prefs.setString('cached_profile_$userId', jsonEncode(profileData));
-        }
-      }
-
-      final res = await http.post(
-        Uri.parse('${AuthService.baseUrl}/profile/update'),
-        headers: {'Content-Type': 'application/json'},
-        body: jsonEncode({
-          "user_id": userId,
-          "field": "weight",
-          "value": newWeight,
-        }),
+      final res = await http.get(
+        Uri.parse('${AuthService.baseUrl}/analytics/$userId'),
       );
 
       if (res.statusCode == 200) {
-        if (mounted) {
-          _showSuccessNotification("Вагу оновлено: $newWeight кг! 🎯");
-          NotificationService().showInstantNotification(
-            "Успіх",
-            "Вагу успішно збережено в хмарі ☁️",
-          );
+        final List<dynamic> data = jsonDecode(res.body);
+        final Map<String, dynamic> historyMap = {};
+
+        for (var item in data) {
+          if (item['day'] != null) {
+            historyMap[item['day']] = item;
+          }
         }
-        _fetchStatus();
+
+        if (mounted) {
+          setState(() {
+            _historyData.addAll(historyMap);
+          });
+        }
       }
     } catch (e) {
-      debugPrint("Weight Update Error: $e");
+      debugPrint("Error fetching history: $e");
     }
+  }
+
+  Map<String, dynamic> get _currentData {
+    if (isSameDay(_selectedDate, DateTime.now())) {
+      return _status ?? {};
+    }
+
+    String dateKey = _selectedDate.toIso8601String().split('T')[0];
+    if (_historyData.containsKey(dateKey)) {
+      final hist = _historyData[dateKey];
+      // Map history data to status structure
+      return {
+        'eaten': hist['calories'] ?? 0,
+        'target': _status?['target'] ?? 2000, // Use current target as fallback
+        'water': hist['water'] ?? 0,
+        'water_target': _status?['water_target'] ?? 2000,
+        'protein': (hist['protein'] ?? 0).toInt(),
+        'fat': (hist['fat'] ?? 0).toInt(),
+        'carbs': (hist['carbs'] ?? 0).toInt(),
+        'target_p': _status?['target_p'] ?? 150,
+        'target_f': _status?['target_f'] ?? 70,
+        'target_c': _status?['target_c'] ?? 250,
+        'goal': _status?['goal'] ?? 'maintain',
+      };
+    }
+
+    // Return empty/zero data if no history found
+    return {
+      'eaten': 0,
+      'target': _status?['target'] ?? 2000,
+      'water': 0,
+      'water_target': _status?['water_target'] ?? 2000,
+      'protein': 0,
+      'fat': 0,
+      'carbs': 0,
+      'target_p': _status?['target_p'] ?? 150,
+      'target_f': _status?['target_f'] ?? 70,
+      'target_c': _status?['target_c'] ?? 250,
+      'goal': _status?['goal'] ?? 'maintain',
+    };
+  }
+
+  bool isSameDay(DateTime a, DateTime b) {
+    return a.year == b.year && a.month == b.month && a.day == b.day;
+  }
+
+  // ... existing methods ...
+
+  @override
+  Widget build(BuildContext context) {
+    if (_isLoading && _status == null) {
+      return Scaffold(
+        backgroundColor: AppColors.backgroundDark,
+        body: AppColors.buildBackgroundWithBlurSpots(
+          child: SafeArea(child: _buildSkeletonLoader()),
+        ),
+      );
+    }
+
+    final currentData = _currentData;
+
+    return Container(
+      color: AppColors.backgroundDark,
+      child: AppColors.buildBackgroundWithBlurSpots(
+        child: Stack(
+          children: [
+            SafeArea(
+              child: Stack(
+                children: [
+                  RefreshIndicator(
+                    onRefresh: () async {
+                      await _fetchStatus();
+                      await _fetchHistory();
+                      await _fetchVitamins();
+                    },
+                    child: SingleChildScrollView(
+                      physics: const AlwaysScrollableScrollPhysics(),
+                      padding: const EdgeInsets.only(
+                        bottom: 100,
+                      ), // Add padding for bottom bar
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Padding(
+                            padding: const EdgeInsets.symmetric(horizontal: 25),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                const SizedBox(height: 20),
+                                _buildHeader(),
+                              ],
+                            ),
+                          ),
+                          const SizedBox(height: 20),
+                          _buildStoriesCarousel(),
+                          const SizedBox(height: 20),
+
+                          // WEEKLY CALENDAR
+                          _buildWeeklyCalendar(),
+
+                          const SizedBox(height: 25),
+
+                          Padding(
+                            padding: const EdgeInsets.symmetric(horizontal: 25),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  isSameDay(_selectedDate, DateTime.now())
+                                      ? "Сьогоднішня статистика"
+                                      : "Статистика за ${_getFullDayName(_selectedDate)}",
+                                  style: TextStyle(
+                                    color: AppColors.textWhite,
+                                    fontSize: 18,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
+                                const SizedBox(height: 15),
+                                _buildMultiChart(
+                                  currentData['eaten'] ?? 0,
+                                  currentData['target'] ?? 2000,
+                                  data: currentData, // Pass full data
+                                ),
+                                const SizedBox(height: 25),
+                                _buildWaterTracker(
+                                  currentData['water'] ?? 0,
+                                  currentData['water_target'] ?? 2000,
+                                ),
+                                const SizedBox(height: 25),
+                                _buildVitaminsSection(),
+                              ],
+                            ),
+                          ),
+                          const SizedBox(height: 40), // Extra space at bottom
+                        ],
+                      ),
+                    ),
+                  ),
+                  Align(
+                    alignment: Alignment.topCenter,
+                    child: ConfettiWidget(
+                      confettiController: _confettiController,
+                      blastDirectionality: BlastDirectionality.explosive,
+                      shouldLoop: false,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            // FloatingBottomNavBar removed from here
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildWeeklyCalendar() {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 20),
+      child: Row(
+        children: List.generate(7, (index) {
+          final date = DateTime.now().subtract(Duration(days: 6 - index));
+          final isSelected = isSameDay(date, _selectedDate);
+
+          return Expanded(
+            child: GestureDetector(
+              onTap: () {
+                setState(() {
+                  _selectedDate = date;
+                });
+              },
+              child: Container(
+                margin: EdgeInsets.only(right: index == 6 ? 0 : 6),
+                height: 65,
+                decoration: BoxDecoration(
+                  color: isSelected
+                      ? AppColors.primaryColor
+                      : const Color(0xFF1C1C1E),
+                  borderRadius: BorderRadius.circular(14),
+                  border: isSelected
+                      ? null
+                      : Border.all(color: Colors.white.withValues(alpha: 0.1)),
+                ),
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                  children: [
+                    Text(
+                      _getDayName(date),
+                      style: TextStyle(
+                        color: isSelected
+                            ? Colors.black
+                            : AppColors.textSecondary,
+                        fontSize: 11,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                    Container(
+                      width: 28,
+                      height: 28,
+                      decoration: BoxDecoration(
+                        color: isSelected ? Colors.white : Colors.transparent,
+                        shape: BoxShape.circle,
+                        border: isSelected
+                            ? null
+                            : Border.all(
+                                color: Colors.white.withValues(alpha: 0.1),
+                              ),
+                      ),
+                      alignment: Alignment.center,
+                      child: Text(
+                        date.day.toString().padLeft(2, '0'),
+                        style: TextStyle(
+                          color: isSelected
+                              ? Colors.black
+                              : AppColors.textWhite,
+                          fontSize: 13,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          );
+        }),
+      ),
+    );
+  }
+
+  String _getDayName(DateTime date) {
+    const days = ['Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб', 'Нд'];
+    return days[date.weekday - 1];
+  }
+
+  String _getFullDayName(DateTime date) {
+    const days = [
+      'Понеділок',
+      'Вівторок',
+      'Середу',
+      'Четвер',
+      'Пʼятницю',
+      'Суботу',
+      'Неділю',
+    ];
+    return days[date.weekday - 1];
   }
 
   // ========== Daily Weight Check Methods ==========
@@ -388,9 +623,9 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
         backgroundColor: AppColors.backgroundDark,
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(20),
-          side: const BorderSide(color: Colors.white10),
+          side: BorderSide(color: AppColors.cardColor),
         ),
-        title: const Column(
+        title: Column(
           children: [
             Icon(
               Icons.monitor_weight_outlined,
@@ -401,7 +636,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
             Text(
               "Оновлення ваги",
               style: TextStyle(
-                color: Colors.white,
+                color: AppColors.textWhite,
                 fontSize: 22,
                 fontWeight: FontWeight.bold,
               ),
@@ -409,9 +644,9 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
             ),
           ],
         ),
-        content: const Text(
+        content: Text(
           "Чи змінилася ваша вага сьогодні?",
-          style: TextStyle(color: Colors.white70, fontSize: 16),
+          style: TextStyle(color: AppColors.textSecondary, fontSize: 16),
           textAlign: TextAlign.center,
         ),
         actions: [
@@ -446,7 +681,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                   _markTodayAsChecked();
                 },
                 style: TextButton.styleFrom(
-                  foregroundColor: Colors.white54,
+                  foregroundColor: AppColors.textSecondary,
                   padding: const EdgeInsets.symmetric(vertical: 14),
                 ),
                 child: const Text(
@@ -480,364 +715,36 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
       }
     }
 
-    int initialKg = currentWeight.floor();
-    int initialGrams = ((currentWeight - initialKg) * 10).round();
-
-    int minKg = 20;
-    int maxKg = 300;
-
-    if (initialKg < minKg) initialKg = minKg;
-    if (initialKg > maxKg) initialKg = maxKg;
-
-    final FixedExtentScrollController kgController =
-        FixedExtentScrollController(initialItem: initialKg - minKg);
-    final FixedExtentScrollController gramController =
-        FixedExtentScrollController(initialItem: initialGrams);
-
     if (!mounted) return;
 
     showModalBottomSheet(
       context: context,
       backgroundColor: Colors.transparent,
-      builder: (context) => Container(
-        height: 350,
-        decoration: BoxDecoration(
-          color: AppColors.backgroundDark,
-          borderRadius: const BorderRadius.vertical(top: Radius.circular(30)),
-          border: Border.all(color: Colors.white10),
-        ),
-        child: Column(
-          children: [
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 20),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  const Text(
-                    "Змінити вагу",
-                    style: TextStyle(
-                      color: Colors.white,
-                      fontSize: 20,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                  IconButton(
-                    onPressed: () => Navigator.pop(context),
-                    icon: const Icon(Icons.close, color: Colors.white54),
-                  ),
-                ],
-              ),
-            ),
-            Expanded(
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  SizedBox(
-                    width: 100,
-                    child: ListWheelScrollView.useDelegate(
-                      controller: kgController,
-                      itemExtent: 60,
-                      perspective: 0.005,
-                      diameterRatio: 1.2,
-                      physics: const FixedExtentScrollPhysics(),
-                      useMagnifier: true,
-                      magnification: 1.2,
-                      overAndUnderCenterOpacity: 0.3,
-                      childDelegate: ListWheelChildBuilderDelegate(
-                        childCount: maxKg - minKg + 1,
-                        builder: (context, index) {
-                          return Center(
-                            child: Text(
-                              "${minKg + index}",
-                              style: const TextStyle(
-                                color: Colors.white,
-                                fontSize: 32,
-                                fontWeight: FontWeight.bold,
-                              ),
-                            ),
-                          );
-                        },
-                      ),
-                    ),
-                  ),
-                  const Padding(
-                    padding: EdgeInsets.only(bottom: 10),
-                    child: Text(
-                      ".",
-                      style: TextStyle(
-                        color: AppColors.primaryColor,
-                        fontSize: 40,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                  ),
-                  SizedBox(
-                    width: 70,
-                    child: ListWheelScrollView.useDelegate(
-                      controller: gramController,
-                      itemExtent: 60,
-                      perspective: 0.005,
-                      diameterRatio: 1.2,
-                      physics: const FixedExtentScrollPhysics(),
-                      useMagnifier: true,
-                      magnification: 1.2,
-                      overAndUnderCenterOpacity: 0.3,
-                      childDelegate: ListWheelChildBuilderDelegate(
-                        childCount: 10,
-                        builder: (context, index) {
-                          return Center(
-                            child: Text(
-                              "$index",
-                              style: const TextStyle(
-                                color: Colors.white,
-                                fontSize: 32,
-                                fontWeight: FontWeight.bold,
-                              ),
-                            ),
-                          );
-                        },
-                      ),
-                    ),
-                  ),
-                  const Padding(
-                    padding: EdgeInsets.only(left: 10),
-                    child: Text(
-                      "кг",
-                      style: TextStyle(
-                        color: Colors.white54,
-                        fontSize: 20,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            Padding(
-              padding: const EdgeInsets.all(25),
-              child: SizedBox(
-                width: double.infinity,
-                height: 55,
-                child: ElevatedButton(
-                  onPressed: () {
-                    int selectedKg = minKg + kgController.selectedItem;
-                    int selectedGram = gramController.selectedItem;
-                    double finalWeight = selectedKg + (selectedGram / 10.0);
-                    _updateWeight(finalWeight);
-                    Navigator.pop(context);
-                  },
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: AppColors.primaryColor,
-                    foregroundColor: Colors.black,
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(15),
-                    ),
-                  ),
-                  child: const Text(
-                    "ЗБЕРЕГТИ",
-                    style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
-                  ),
-                ),
-              ),
-            ),
-          ],
-        ),
+      builder: (context) => WeightUpdateSheet(
+        currentWeight: currentWeight,
+        onWeightUpdated: (newWeight) {
+          setState(() {
+            if (_status != null) _status!['weight'] = newWeight;
+          });
+          _showSuccessNotification("Вагу оновлено: $newWeight кг! 🎯");
+          _fetchStatus(); // Ensure fresh sync
+        },
       ),
     );
   }
 
-  void _openVitaminWizard() {
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
-      builder: (context) => const AddVitaminSheet(),
-    ).then((_) {
-      _fetchVitamins();
-    });
-  }
-
-  void _showAddMenu() {
-    showModalBottomSheet(
-      context: context,
-      backgroundColor: Colors.transparent,
-      isScrollControlled: true,
-      builder: (modalContext) {
-        return StatefulBuilder(
-          builder: (BuildContext sheetContext, StateSetter setModalState) {
-            return Container(
-              padding: const EdgeInsets.fromLTRB(20, 20, 20, 40),
-              decoration: BoxDecoration(
-                color: AppColors.backgroundDark,
-                borderRadius: const BorderRadius.vertical(
-                  top: Radius.circular(30),
-                ),
-                border: Border.all(color: Colors.white10),
-              ),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Container(
-                    width: 40,
-                    height: 4,
-                    decoration: BoxDecoration(
-                      color: Colors.white24,
-                      borderRadius: BorderRadius.circular(2),
-                    ),
-                  ),
-                  const SizedBox(height: 25),
-                  Row(
-                    children: [
-                      Expanded(
-                        child: _buildSmallAction(
-                          label: "Вітаміни",
-                          icon: Icons.medication_outlined,
-                          color: Colors.orangeAccent,
-                          onTap: () => _openVitaminWizard(),
-                        ),
-                      ),
-                      const SizedBox(width: 15),
-                      Expanded(
-                        child: _buildSmallAction(
-                          label: "Вага",
-                          icon: Icons.monitor_weight_outlined,
-                          color: const Color(0xFF12DCEF),
-                          onTap: () => _showWeightWheelPicker(),
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 15),
-                  Row(
-                    children: [
-                      Expanded(
-                        child: _buildSquareAction(
-                          icon: Icons.water_drop,
-                          label: "Вода",
-                          subLabel: "+250 мл",
-                          color: Colors.blueAccent,
-                          isWater: true,
-                          onTap: () async => await _addWater(),
-                        ),
-                      ),
-                      const SizedBox(width: 15),
-                      Expanded(
-                        child: _buildSquareAction(
-                          icon: Icons.camera_alt,
-                          label: "Фото-сканер",
-                          subLabel: "Розпізнавання",
-                          color: AppColors.primaryColor,
-                          onTap: () async {
-                            await Future.delayed(
-                              const Duration(milliseconds: 150),
-                            );
-                            if (sheetContext.mounted) {
-                              Navigator.pop(sheetContext);
-                              await Navigator.push(
-                                sheetContext,
-                                PageRouteBuilder(
-                                  pageBuilder: (_, _, _) =>
-                                      const CameraScreen(),
-                                ),
-                              );
-                              if (mounted) _fetchStatus();
-                            }
-                          },
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 15),
-                  _buildWideAction(
-                    icon: Icons.auto_awesome,
-                    label: "AI Шеф: Створити рецепт",
-                    color: Colors.purpleAccent,
-                    onTap: () async {
-                      await Future.delayed(const Duration(milliseconds: 150));
-                      if (sheetContext.mounted) {
-                        Navigator.pop(sheetContext);
-                        await Navigator.push(
-                          sheetContext,
-                          MaterialPageRoute(
-                            builder: (context) => const RecipesScreen(),
-                          ),
-                        );
-                      }
-                    },
-                  ),
-                  const SizedBox(height: 25),
-                  const Align(
-                    alignment: Alignment.centerLeft,
-                    child: Text(
-                      "Додати прийом їжі",
-                      style: TextStyle(
-                        color: Colors.white70,
-                        fontSize: 16,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                  ),
-                  const SizedBox(height: 15),
-                  Row(
-                    children: [
-                      Expanded(
-                        child: Column(
-                          children: [
-                            _buildMealAction(
-                              "Сніданок",
-                              Icons.wb_sunny_outlined,
-                              Colors.orange,
-                              sheetContext,
-                            ),
-                            const SizedBox(height: 10),
-                            _buildMealAction(
-                              "Вечеря",
-                              Icons.nights_stay_outlined,
-                              Colors.indigoAccent,
-                              sheetContext,
-                            ),
-                          ],
-                        ),
-                      ),
-                      const SizedBox(width: 15),
-                      Expanded(
-                        child: Column(
-                          children: [
-                            _buildMealAction(
-                              "Обід",
-                              Icons.wb_sunny,
-                              Colors.yellow,
-                              sheetContext,
-                            ),
-                            const SizedBox(height: 10),
-                            _buildMealAction(
-                              "Перекус",
-                              Icons.fastfood_outlined,
-                              Colors.pinkAccent,
-                              sheetContext,
-                            ),
-                          ],
-                        ),
-                      ),
-                    ],
-                  ),
-                ],
-              ),
-            );
-          },
-        );
-      },
-    );
-  }
-
   Widget _buildVitaminsSection() {
+    // Hide vitamins for past dates as we don't have historical data for them yet
+    if (!isSameDay(_selectedDate, DateTime.now()))
+      return const SizedBox.shrink();
+
     if (_vitamins.isEmpty) return const SizedBox.shrink();
 
     return Container(
       decoration: BoxDecoration(
-        color: Colors.white.withValues(alpha: 0.05),
+        color: AppColors.glassCardColor,
         borderRadius: BorderRadius.circular(28),
-        border: Border.all(color: Colors.white10),
+        border: Border.all(color: AppColors.glassCardColor),
       ),
       child: Column(
         mainAxisSize: MainAxisSize.min,
@@ -848,10 +755,10 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
             child: Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                const Text(
+                Text(
                   "Мої вітаміни",
                   style: TextStyle(
-                    color: Colors.white,
+                    color: AppColors.textWhite,
                     fontSize: 18,
                     fontWeight: FontWeight.bold,
                   ),
@@ -877,7 +784,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
               ],
             ),
           ),
-          const Divider(color: Colors.white10, height: 1),
+          Divider(color: AppColors.cardColor, height: 1),
           ListView.separated(
             shrinkWrap: true,
             physics: const NeverScrollableScrollPhysics(),
@@ -907,13 +814,13 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
               },
               child: Container(
                 padding: const EdgeInsets.symmetric(vertical: 12),
-                decoration: const BoxDecoration(
-                  border: Border(top: BorderSide(color: Colors.white10)),
+                decoration: BoxDecoration(
+                  border: Border(top: BorderSide(color: AppColors.cardColor)),
                 ),
                 child: Row(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-                    const Text(
+                    Text(
                       "Показати більше",
                       style: TextStyle(
                         color: AppColors.primaryColor,
@@ -922,7 +829,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                       ),
                     ),
                     const SizedBox(width: 5),
-                    const Icon(
+                    Icon(
                       Icons.arrow_forward,
                       color: AppColors.primaryColor,
                       size: 18,
@@ -983,8 +890,8 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
               children: [
                 Text(
                   vitamin['name'] ?? "Vitamin",
-                  style: const TextStyle(
-                    color: Colors.white,
+                  style: TextStyle(
+                    color: AppColors.textWhite,
                     fontSize: 20,
                     fontWeight: FontWeight.bold,
                   ),
@@ -1022,9 +929,9 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 15, vertical: 12),
         decoration: BoxDecoration(
-          color: Colors.white.withValues(alpha: 0.05),
+          color: AppColors.glassCardColor,
           borderRadius: BorderRadius.circular(15),
-          border: Border.all(color: Colors.white10),
+          border: Border.all(color: AppColors.glassCardColor),
         ),
         child: Row(
           children: [
@@ -1046,8 +953,8 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                       Flexible(
                         child: Text(
                           vitamin['name'] ?? "No Name",
-                          style: const TextStyle(
-                            color: Colors.white,
+                          style: TextStyle(
+                            color: AppColors.textWhite,
                             fontSize: 16,
                             fontWeight: FontWeight.bold,
                           ),
@@ -1060,8 +967,8 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                         Flexible(
                           child: Text(
                             "(${vitamin['brand']})",
-                            style: const TextStyle(
-                              color: Colors.white54,
+                            style: TextStyle(
+                              color: AppColors.textSecondary,
                               fontSize: 14,
                             ),
                             overflow: TextOverflow.ellipsis,
@@ -1077,8 +984,8 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                       vitamin['description'].toString().length > 30
                           ? '${vitamin['description'].toString().substring(0, 30)}...'
                           : vitamin['description'].toString(),
-                      style: const TextStyle(
-                        color: Colors.white70,
+                      style: TextStyle(
+                        color: AppColors.textSecondary,
                         fontSize: 12,
                       ),
                       maxLines: 1,
@@ -1088,16 +995,16 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                       (vitamin['schedules'] as List).isNotEmpty)
                     Row(
                       children: [
-                        const Icon(
+                        Icon(
                           Icons.medication_liquid,
-                          color: Colors.white38,
+                          color: AppColors.textSecondary,
                           size: 12,
                         ),
                         const SizedBox(width: 4),
                         Text(
                           vitamin['schedules'][0]['dose'] ?? 'Не вказано',
-                          style: const TextStyle(
-                            color: Colors.white38,
+                          style: TextStyle(
+                            color: AppColors.textSecondary,
                             fontSize: 11,
                           ),
                         ),
@@ -1106,7 +1013,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                 ],
               ),
             ),
-            const Icon(Icons.chevron_right, color: Colors.white24, size: 20),
+            Icon(Icons.chevron_right, color: AppColors.textSecondary, size: 20),
           ],
         ),
       ),
@@ -1124,214 +1031,10 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     });
   }
 
-  Widget _buildSmallAction({
-    required String label,
-    required IconData icon,
-    required Color color,
-    required VoidCallback onTap,
-  }) {
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        padding: const EdgeInsets.symmetric(vertical: 12),
-        decoration: BoxDecoration(
-          color: Colors.white.withValues(alpha: 0.05),
-          borderRadius: BorderRadius.circular(15),
-          border: Border.all(color: Colors.white10),
-        ),
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(icon, color: color, size: 20),
-            const SizedBox(width: 8),
-            Text(
-              label,
-              style: const TextStyle(
-                color: Colors.white,
-                fontWeight: FontWeight.bold,
-                fontSize: 16,
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildSquareAction({
-    required IconData icon,
-    required String label,
-    required String subLabel,
-    required Color color,
-    required VoidCallback onTap,
-    bool isWater = false,
-  }) {
-    bool isPressed = false;
-    return StatefulBuilder(
-      builder: (context, setState) {
-        return GestureDetector(
-          onTap: () async {
-            if (isWater) {
-              setState(() => isPressed = true);
-              await Future.delayed(const Duration(milliseconds: 800));
-              setState(() => isPressed = false);
-            }
-            onTap();
-          },
-          child: Container(
-            height: 110,
-            padding: const EdgeInsets.all(15),
-            decoration: BoxDecoration(
-              color: isPressed
-                  ? color.withValues(alpha: 0.2)
-                  : Colors.white.withValues(alpha: 0.05),
-              borderRadius: BorderRadius.circular(20),
-              border: Border.all(
-                color: isPressed ? color : Colors.white10,
-                width: 1.5,
-              ),
-            ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                AnimatedSwitcher(
-                  duration: const Duration(milliseconds: 300),
-                  child: isPressed && isWater
-                      ? Icon(
-                          Icons.check_circle,
-                          key: const ValueKey('check'),
-                          color: color,
-                          size: 32,
-                        )
-                      : Icon(
-                          icon,
-                          key: const ValueKey('icon'),
-                          color: color,
-                          size: 32,
-                        ),
-                ),
-                Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      label,
-                      style: const TextStyle(
-                        color: Colors.white,
-                        fontWeight: FontWeight.bold,
-                        fontSize: 16,
-                      ),
-                    ),
-                    Text(
-                      isPressed && isWater ? "Додано!" : subLabel,
-                      style: TextStyle(
-                        color: Colors.white.withValues(alpha: 0.5),
-                        fontSize: 12,
-                      ),
-                    ),
-                  ],
-                ),
-              ],
-            ),
-          ),
-        );
-      },
-    );
-  }
-
-  Widget _buildWideAction({
-    required IconData icon,
-    required String label,
-    required Color color,
-    required VoidCallback onTap,
-  }) {
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        width: double.infinity,
-        padding: const EdgeInsets.all(16),
-        decoration: BoxDecoration(
-          gradient: LinearGradient(
-            colors: [
-              color.withValues(alpha: 0.2),
-              color.withValues(alpha: 0.05),
-            ],
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-          ),
-          borderRadius: BorderRadius.circular(18),
-          border: Border.all(color: color.withValues(alpha: 0.3)),
-        ),
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(icon, color: color),
-            const SizedBox(width: 10),
-            Text(
-              label,
-              style: const TextStyle(
-                color: Colors.white,
-                fontWeight: FontWeight.bold,
-                fontSize: 16,
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildMealAction(
-    String label,
-    IconData icon,
-    Color color,
-    BuildContext context,
-  ) {
-    return GestureDetector(
-      onTap: () async {
-        Navigator.pop(context);
-        await Navigator.push(
-          context,
-          MaterialPageRoute(builder: (context) => const FoodSearchScreen()),
-        );
-        _fetchStatus();
-      },
-      child: Container(
-        padding: const EdgeInsets.symmetric(vertical: 15, horizontal: 15),
-        decoration: BoxDecoration(
-          color: Colors.white.withValues(alpha: 0.05),
-          borderRadius: BorderRadius.circular(18),
-          border: Border.all(color: Colors.white10),
-        ),
-        child: Row(
-          children: [
-            Container(
-              padding: const EdgeInsets.all(8),
-              decoration: BoxDecoration(
-                color: color.withValues(alpha: 0.1),
-                shape: BoxShape.circle,
-              ),
-              child: Icon(icon, color: color, size: 20),
-            ),
-            const SizedBox(width: 12),
-            Text(
-              label,
-              style: const TextStyle(
-                color: Colors.white,
-                fontWeight: FontWeight.bold,
-                fontSize: 15,
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
   Widget _buildSkeletonLoader() {
     return Shimmer.fromColors(
-      baseColor: Colors.white.withValues(alpha: 0.05),
-      highlightColor: Colors.white.withValues(alpha: 0.1),
+      baseColor: AppColors.cardColor,
+      highlightColor: AppColors.textSecondary.withValues(alpha: 0.1),
       child: Padding(
         padding: const EdgeInsets.symmetric(horizontal: 25),
         child: Column(
@@ -1413,7 +1116,8 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
               Image.network(
                 story['image_url'] ?? "",
                 fit: BoxFit.cover,
-                errorBuilder: (_, _, _) => Container(color: Colors.white10),
+                errorBuilder: (_, _, _) =>
+                    Container(color: AppColors.cardColor),
               ),
               Container(
                 decoration: BoxDecoration(
@@ -1449,104 +1153,6 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     );
   }
 
-  @override
-  Widget build(BuildContext context) {
-    if (_isLoading && _status == null) {
-      return Scaffold(
-        backgroundColor: AppColors.backgroundDark,
-        body: AppColors.buildBackgroundWithBlurSpots(
-          child: SafeArea(child: _buildSkeletonLoader()),
-        ),
-        bottomNavigationBar: _buildBottomAppBar(),
-      );
-    }
-    return Scaffold(
-      backgroundColor: AppColors.backgroundDark,
-      body: AppColors.buildBackgroundWithBlurSpots(
-        child: SafeArea(
-          child: Stack(
-            children: [
-              RefreshIndicator(
-                onRefresh: () async {
-                  await _fetchStatus();
-                  await _fetchVitamins();
-                },
-                child: SingleChildScrollView(
-                  physics: const AlwaysScrollableScrollPhysics(),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Padding(
-                        padding: const EdgeInsets.symmetric(horizontal: 25),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            const SizedBox(height: 20),
-                            _buildHeader(),
-                          ],
-                        ),
-                      ),
-                      const SizedBox(height: 20),
-                      _buildStoriesCarousel(),
-                      const SizedBox(height: 25),
-
-                      Padding(
-                        padding: const EdgeInsets.symmetric(horizontal: 25),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            const Text(
-                              "Сьогоднішня статистика",
-                              style: TextStyle(
-                                color: Colors.white,
-                                fontSize: 18,
-                                fontWeight: FontWeight.bold,
-                              ),
-                            ),
-                            const SizedBox(height: 15),
-                            _buildMultiChart(
-                              _status?['eaten'] ?? 0,
-                              _status?['target'] ?? 2000,
-                            ),
-                            const SizedBox(height: 25),
-                            _buildWaterTracker(
-                              _status?['water'] ?? 0,
-                              _status?['water_target'] ?? 2000,
-                            ),
-                            const SizedBox(height: 25),
-                            _buildVitaminsSection(),
-                          ],
-                        ),
-                      ),
-                      const SizedBox(height: 120),
-                    ],
-                  ),
-                ),
-              ),
-              Align(
-                alignment: Alignment.topCenter,
-                child: ConfettiWidget(
-                  confettiController: _confettiController,
-                  blastDirectionality: BlastDirectionality.explosive,
-                  shouldLoop: false,
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-      bottomNavigationBar: _buildBottomAppBar(),
-      floatingActionButton: FloatingActionButton(
-        onPressed: _showAddMenu,
-        backgroundColor: AppColors.primaryColor,
-        elevation: 10,
-        shape: const CircleBorder(),
-        child: const Icon(Icons.add, color: Colors.black, size: 32),
-      ),
-      floatingActionButtonLocation: FloatingActionButtonLocation.centerDocked,
-    );
-  }
-
   Widget _buildHeader() {
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -1565,10 +1171,10 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
             ),
             Text(
               _greetingText,
-              style: const TextStyle(
+              style: TextStyle(
                 fontSize: 24,
                 fontWeight: FontWeight.bold,
-                color: Colors.white,
+                color: AppColors.textWhite,
               ),
             ),
           ],
@@ -1588,113 +1194,9 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                 );
               },
             ),
-            const SizedBox(width: 8),
-            GestureDetector(
-              onTap: () async {
-                await Navigator.push(
-                  context,
-                  PageRouteBuilder(
-                    pageBuilder: (_, _, _) => const ProfileScreen(),
-                  ),
-                );
-                _fetchStatus();
-              },
-              child: CircleAvatar(
-                radius: 22,
-                backgroundColor: Colors.white10,
-                backgroundImage: _status?['avatar_url'] != null
-                    ? NetworkImage(_status?['avatar_url'])
-                    : null,
-                child: _status?['avatar_url'] == null
-                    ? const Icon(Icons.person, color: Colors.white60)
-                    : null,
-              ),
-            ),
           ],
         ),
       ],
-    );
-  }
-
-  Widget _buildBottomAppBar() {
-    return BottomAppBar(
-      color: const Color(0xFF1A1A1A),
-      shape: const CircularNotchedRectangle(),
-      notchMargin: 8,
-      child: SizedBox(
-        height: 60,
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.spaceAround,
-          children: [
-            _navIcon(Icons.home, "Головна", true, () {}),
-            _navIcon(
-              Icons.analytics_outlined,
-              "Трекер",
-              false,
-              () => Navigator.push(
-                context,
-                PageRouteBuilder(
-                  pageBuilder: (_, _, _) => const AnalyticsScreen(),
-                ),
-              ),
-            ),
-            const SizedBox(width: 45),
-            _navIcon(
-              Icons.lightbulb_outline,
-              "Поради",
-              false,
-              () => Navigator.push(
-                context,
-                PageRouteBuilder(pageBuilder: (_, _, _) => const TipsScreen()),
-              ),
-            ),
-            _navIcon(
-              Icons.restaurant_menu,
-              "Рецепти",
-              false,
-              () => Navigator.push(
-                context,
-                PageRouteBuilder(
-                  pageBuilder: (_, _, _) => const RecipesScreen(),
-                ),
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _navIcon(
-    IconData icon,
-    String label,
-    bool isActive,
-    VoidCallback onTap,
-  ) {
-    return InkWell(
-      onTap: onTap,
-      borderRadius: BorderRadius.circular(10),
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(
-              icon,
-              color: isActive ? AppColors.primaryColor : Colors.white38,
-              size: 24,
-            ),
-            const SizedBox(height: 2),
-            Text(
-              label,
-              style: TextStyle(
-                color: isActive ? AppColors.primaryColor : Colors.white38,
-                fontSize: 10,
-              ),
-            ),
-          ],
-        ),
-      ),
     );
   }
 
@@ -1702,22 +1204,23 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     width: double.infinity,
     padding: const EdgeInsets.all(20),
     decoration: BoxDecoration(
-      color: Colors.white.withValues(alpha: 0.05),
+      color: AppColors.glassCardColor,
       borderRadius: BorderRadius.circular(28),
-      border: Border.all(color: Colors.white10),
+      border: Border.all(color: AppColors.glassCardColor),
     ),
     child: child,
   );
 
-  Widget _buildMultiChart(int eaten, int target) {
-    double p = (_status?['protein'] ?? 0).toDouble();
-    double f = (_status?['fat'] ?? 0).toDouble();
-    double c = (_status?['carbs'] ?? 0).toDouble();
-    int targetP = _status?['target_p'] ?? 120;
-    int targetF = _status?['target_f'] ?? 70;
-    int targetC = _status?['target_c'] ?? 250;
-    int targetCals = _status?['target'] ?? 2000;
-    int eatenCals = _status?['eaten'] ?? 0;
+  Widget _buildMultiChart(int eaten, int target, {Map<String, dynamic>? data}) {
+    final source = data ?? _status ?? {};
+    double p = (source['protein'] ?? 0).toDouble();
+    double f = (source['fat'] ?? 0).toDouble();
+    double c = (source['carbs'] ?? 0).toDouble();
+    int targetP = source['target_p'] ?? 120;
+    int targetF = source['target_f'] ?? 70;
+    int targetC = source['target_c'] ?? 250;
+    int targetCals = source['target'] ?? 2000;
+    int eatenCals = source['eaten'] ?? 0;
 
     // 🎨 ЛОГУВАННЯ ВІДОБРАЖУВАНИХ ДАНИХ
     print('\n🎨 HOME SCREEN: Відображення макросів');
@@ -1770,9 +1273,12 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                             fontWeight: FontWeight.bold,
                           ),
                         ),
-                        const Text(
+                        Text(
                           "ккал",
-                          style: TextStyle(fontSize: 10, color: Colors.white38),
+                          style: TextStyle(
+                            fontSize: 10,
+                            color: AppColors.textSecondary,
+                          ),
                         ),
                       ],
                     ),
@@ -1793,7 +1299,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                           const SizedBox(width: 6),
                           Text(
                             goalText.toUpperCase(),
-                            style: const TextStyle(
+                            style: TextStyle(
                               color: AppColors.primaryColor,
                               fontSize: 11,
                               fontWeight: FontWeight.bold,
@@ -1805,8 +1311,8 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                       const SizedBox(height: 8),
                       Text(
                         goalReached ? "Статус" : "Залишилось",
-                        style: const TextStyle(
-                          color: Colors.white60,
+                        style: TextStyle(
+                          color: AppColors.textSecondary,
                           fontSize: 13,
                         ),
                       ),
@@ -1818,7 +1324,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                           fontWeight: FontWeight.bold,
                           color: goalReached
                               ? Colors.orangeAccent
-                              : Colors.white,
+                              : AppColors.textWhite,
                         ),
                       ),
                       const SizedBox(height: 10),
@@ -1826,7 +1332,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                         borderRadius: BorderRadius.circular(10),
                         child: LinearProgressIndicator(
                           value: (eatenCals / targetCals).clamp(0.0, 1.0),
-                          backgroundColor: Colors.white10,
+                          backgroundColor: AppColors.cardColor,
                           color: AppColors.primaryColor,
                           minHeight: 6,
                         ),
@@ -1834,9 +1340,9 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                       const SizedBox(height: 6),
                       Text(
                         "Ціль: $targetCals ккал",
-                        style: const TextStyle(
+                        style: TextStyle(
                           fontSize: 11,
-                          color: Colors.white38,
+                          color: AppColors.textSecondary,
                         ),
                       ),
                     ],
@@ -1846,7 +1352,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
             ),
           ),
           const SizedBox(height: 25),
-          const Divider(color: Colors.white10, height: 1),
+          Divider(color: AppColors.cardColor, height: 1),
           const SizedBox(height: 20),
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceAround,
@@ -1857,14 +1363,14 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                 targetP,
                 const Color(0xFF42A5F5),
               ),
-              Container(width: 1, height: 30, color: Colors.white10),
+              Container(width: 1, height: 30, color: AppColors.cardColor),
               _compactMacroItem(
                 "Жири",
                 "${f.toInt()}",
                 targetF,
                 const Color(0xFFFFA726),
               ),
-              Container(width: 1, height: 30, color: Colors.white10),
+              Container(width: 1, height: 30, color: AppColors.cardColor),
               _compactMacroItem(
                 "Вугл.",
                 "${c.toInt()}",
@@ -1913,8 +1419,8 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
             children: [
               TextSpan(
                 text: value,
-                style: const TextStyle(
-                  color: Colors.white,
+                style: TextStyle(
+                  color: AppColors.textWhite,
                   fontWeight: FontWeight.bold,
                   fontSize: 16,
                 ),
@@ -1922,7 +1428,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
               TextSpan(
                 text: " / $targetг",
                 style: TextStyle(
-                  color: Colors.white.withValues(alpha: 0.3),
+                  color: AppColors.textSecondary.withValues(alpha: 0.3),
                   fontSize: 11,
                 ),
               ),
@@ -1952,7 +1458,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
               ),
               const Spacer(),
               IconButton(
-                onPressed: _addWater,
+                onPressed: () => addWater(),
                 icon: const Icon(
                   Icons.add_circle,
                   color: Colors.blueAccent,
@@ -1999,7 +1505,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
       decoration: BoxDecoration(
         color: AppColors.backgroundDark,
         borderRadius: const BorderRadius.vertical(top: Radius.circular(35)),
-        border: Border.all(color: Colors.white10),
+        border: Border.all(color: AppColors.cardColor),
       ),
       child: Column(
         mainAxisSize: MainAxisSize.min,
@@ -2008,7 +1514,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
             width: 40,
             height: 4,
             decoration: BoxDecoration(
-              color: Colors.white24,
+              color: AppColors.textSecondary.withValues(alpha: 0.3),
               borderRadius: BorderRadius.circular(2),
             ),
           ),
@@ -2027,8 +1533,8 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
           Text(
             text,
             textAlign: TextAlign.center,
-            style: const TextStyle(
-              color: Colors.white70,
+            style: TextStyle(
+              color: AppColors.textSecondary,
               fontSize: 16,
               height: 1.5,
             ),
@@ -2062,7 +1568,7 @@ class _AnimatedGlass extends StatelessWidget {
   Widget build(BuildContext context) => Stack(
     alignment: Alignment.bottomCenter,
     children: [
-      const Icon(Icons.local_drink, size: 30, color: Colors.white12),
+      Icon(Icons.local_drink, size: 30, color: AppColors.cardColor),
       TweenAnimationBuilder<double>(
         tween: Tween(begin: 0, end: fillAmount),
         duration: const Duration(milliseconds: 1200),
@@ -2289,10 +1795,10 @@ class _AddVitaminSheetState extends State<AddVitaminSheet> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text(
+          Text(
             "Основна інформація",
             style: TextStyle(
-              color: Colors.white,
+              color: AppColors.textWhite,
               fontSize: 18,
               fontWeight: FontWeight.bold,
             ),
@@ -2304,9 +1810,9 @@ class _AddVitaminSheetState extends State<AddVitaminSheet> {
           const SizedBox(height: 15),
           _buildInput("Фірма (опціонально)", _brandCtrl),
           const SizedBox(height: 25),
-          const Text(
+          Text(
             "Тип вітамінів",
-            style: TextStyle(color: Colors.white70, fontSize: 14),
+            style: TextStyle(color: AppColors.textSecondary, fontSize: 14),
           ),
           const SizedBox(height: 10),
           Wrap(
@@ -2330,12 +1836,12 @@ class _AddVitaminSheetState extends State<AddVitaminSheet> {
           Container(
             padding: const EdgeInsets.all(12),
             decoration: BoxDecoration(
-              color: isSelected ? AppColors.primaryColor : Colors.white10,
+              color: isSelected ? AppColors.primaryColor : AppColors.cardColor,
               shape: BoxShape.circle,
             ),
             child: Icon(
               icon,
-              color: isSelected ? Colors.black : Colors.white,
+              color: isSelected ? Colors.black : AppColors.textWhite,
               size: 24,
             ),
           ),
@@ -2343,7 +1849,9 @@ class _AddVitaminSheetState extends State<AddVitaminSheet> {
           Text(
             _typeNames[key]!,
             style: TextStyle(
-              color: isSelected ? AppColors.primaryColor : Colors.white54,
+              color: isSelected
+                  ? AppColors.primaryColor
+                  : AppColors.textSecondary,
               fontSize: 12,
             ),
           ),
@@ -2365,10 +1873,10 @@ class _AddVitaminSheetState extends State<AddVitaminSheet> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Text(
+            Text(
               "Графік прийому",
               style: TextStyle(
-                color: Colors.white,
+                color: AppColors.textWhite,
                 fontSize: 18,
                 fontWeight: FontWeight.bold,
               ),
@@ -2388,9 +1896,9 @@ class _AddVitaminSheetState extends State<AddVitaminSheet> {
             _buildFreqOption("Дні тижня", "week_days"),
             if (_frequency == 'week_days') _buildWeekDaysSelector(),
             const SizedBox(height: 25),
-            const Text(
+            Text(
               "Дата початку",
-              style: TextStyle(color: Colors.white70, fontSize: 14),
+              style: TextStyle(color: AppColors.textSecondary, fontSize: 14),
             ),
             const SizedBox(height: 10),
             _buildDatePickerWheel(),
@@ -2406,10 +1914,10 @@ class _AddVitaminSheetState extends State<AddVitaminSheet> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text(
+          Text(
             "Час і дозування",
             style: TextStyle(
-              color: Colors.white,
+              color: AppColors.textWhite,
               fontSize: 18,
               fontWeight: FontWeight.bold,
             ),
@@ -2420,7 +1928,7 @@ class _AddVitaminSheetState extends State<AddVitaminSheet> {
               margin: const EdgeInsets.only(bottom: 10),
               padding: const EdgeInsets.symmetric(horizontal: 15, vertical: 12),
               decoration: BoxDecoration(
-                color: Colors.white10,
+                color: AppColors.cardColor,
                 borderRadius: BorderRadius.circular(12),
               ),
               child: Row(
@@ -2428,7 +1936,7 @@ class _AddVitaminSheetState extends State<AddVitaminSheet> {
                 children: [
                   Row(
                     children: [
-                      const Icon(
+                      Icon(
                         Icons.access_time,
                         color: AppColors.primaryColor,
                         size: 20,
@@ -2436,8 +1944,8 @@ class _AddVitaminSheetState extends State<AddVitaminSheet> {
                       const SizedBox(width: 8),
                       Text(
                         "${s['time']} - ${s['dose'] ?? 'Не вказано'}",
-                        style: const TextStyle(
-                          color: Colors.white,
+                        style: TextStyle(
+                          color: AppColors.textWhite,
                           fontWeight: FontWeight.bold,
                         ),
                       ),
@@ -2462,7 +1970,7 @@ class _AddVitaminSheetState extends State<AddVitaminSheet> {
               icon: const Icon(Icons.add),
               label: const Text("Додати час"),
               style: ElevatedButton.styleFrom(
-                backgroundColor: Colors.white10,
+                backgroundColor: AppColors.cardColor,
                 foregroundColor: AppColors.primaryColor,
               ),
             ),
@@ -2495,14 +2003,14 @@ class _AddVitaminSheetState extends State<AddVitaminSheet> {
         decoration: BoxDecoration(
           color: AppColors.backgroundDark,
           borderRadius: const BorderRadius.vertical(top: Radius.circular(30)),
-          border: Border.all(color: Colors.white10),
+          border: Border.all(color: AppColors.cardColor),
         ),
         child: Column(
           children: [
-            const Text(
+            Text(
               "Оберіть час і дозу",
               style: TextStyle(
-                color: Colors.white,
+                color: AppColors.textWhite,
                 fontWeight: FontWeight.bold,
                 fontSize: 18,
               ),
@@ -2522,8 +2030,8 @@ class _AddVitaminSheetState extends State<AddVitaminSheet> {
                         builder: (c, i) => Center(
                           child: Text(
                             "$i".padLeft(2, '0'),
-                            style: const TextStyle(
-                              color: Colors.white,
+                            style: TextStyle(
+                              color: AppColors.textWhite,
                               fontSize: 24,
                               fontWeight: FontWeight.bold,
                             ),
@@ -2532,9 +2040,9 @@ class _AddVitaminSheetState extends State<AddVitaminSheet> {
                       ),
                     ),
                   ),
-                  const Text(
+                  Text(
                     ":",
-                    style: TextStyle(color: Colors.white, fontSize: 24),
+                    style: TextStyle(color: AppColors.textWhite, fontSize: 24),
                   ),
                   SizedBox(
                     width: 60,
@@ -2546,8 +2054,8 @@ class _AddVitaminSheetState extends State<AddVitaminSheet> {
                         builder: (c, i) => Center(
                           child: Text(
                             "$i".padLeft(2, '0'),
-                            style: const TextStyle(
-                              color: Colors.white,
+                            style: TextStyle(
+                              color: AppColors.textWhite,
                               fontSize: 24,
                               fontWeight: FontWeight.bold,
                             ),
@@ -2562,23 +2070,23 @@ class _AddVitaminSheetState extends State<AddVitaminSheet> {
             TextField(
               controller: doseCtrl,
               maxLength: 30,
-              style: const TextStyle(color: Colors.white),
+              style: TextStyle(color: AppColors.textWhite),
               decoration: InputDecoration(
                 labelText: "Дозування (напр. 1 $doseSuffix)",
-                labelStyle: const TextStyle(color: Colors.white54),
+                labelStyle: TextStyle(color: AppColors.textSecondary),
                 filled: true,
-                fillColor: Colors.white.withValues(alpha: 0.05),
+                fillColor: AppColors.cardColor,
                 border: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(12),
-                  borderSide: const BorderSide(color: Colors.white10),
+                  borderSide: BorderSide(color: AppColors.cardColor),
                 ),
                 enabledBorder: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(12),
-                  borderSide: const BorderSide(color: Colors.white10),
+                  borderSide: BorderSide(color: AppColors.cardColor),
                 ),
                 focusedBorder: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(12),
-                  borderSide: const BorderSide(
+                  borderSide: BorderSide(
                     color: AppColors.primaryColor,
                     width: 1.5,
                   ),
@@ -2623,7 +2131,7 @@ class _AddVitaminSheetState extends State<AddVitaminSheet> {
       height: 120,
       padding: const EdgeInsets.all(10),
       decoration: BoxDecoration(
-        color: Colors.white.withValues(alpha: 0.05),
+        color: AppColors.glassCardColor,
         borderRadius: BorderRadius.circular(15),
       ),
       child: Row(
@@ -2703,8 +2211,8 @@ class _AddVitaminSheetState extends State<AddVitaminSheet> {
               labels != null
                   ? labels[i]
                   : "${i + 1 + (offset > 0 ? offset - 1 : 0)}",
-              style: const TextStyle(
-                color: Colors.white,
+              style: TextStyle(
+                color: AppColors.textWhite,
                 fontWeight: FontWeight.bold,
                 fontSize: 16,
               ),
@@ -2723,26 +2231,23 @@ class _AddVitaminSheetState extends State<AddVitaminSheet> {
     return TextField(
       controller: ctrl,
       maxLength: maxLength,
-      style: const TextStyle(color: Colors.white),
+      style: TextStyle(color: AppColors.textWhite),
       decoration: InputDecoration(
         labelText: label,
-        labelStyle: const TextStyle(color: Colors.white54),
+        labelStyle: TextStyle(color: AppColors.textSecondary),
         filled: true,
-        fillColor: Colors.white.withValues(alpha: 0.05),
+        fillColor: AppColors.cardColor,
         border: OutlineInputBorder(
           borderRadius: BorderRadius.circular(12),
-          borderSide: const BorderSide(color: Colors.white10),
+          borderSide: BorderSide(color: AppColors.cardColor),
         ),
         enabledBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(12),
-          borderSide: const BorderSide(color: Colors.white10),
+          borderSide: BorderSide(color: AppColors.cardColor),
         ),
         focusedBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(12),
-          borderSide: const BorderSide(
-            color: AppColors.primaryColor,
-            width: 1.5,
-          ),
+          borderSide: BorderSide(color: AppColors.primaryColor, width: 1.5),
         ),
       ),
     );
@@ -2750,7 +2255,7 @@ class _AddVitaminSheetState extends State<AddVitaminSheet> {
 
   Widget _buildFreqOption(String title, String val) {
     return RadioListTile<String>(
-      title: Text(title, style: const TextStyle(color: Colors.white)),
+      title: Text(title, style: TextStyle(color: AppColors.textWhite)),
       value: val,
       activeColor: AppColors.primaryColor,
     );
@@ -2765,8 +2270,10 @@ class _AddVitaminSheetState extends State<AddVitaminSheet> {
           label: Text(["ПН", "ВТ", "СР", "ЧТ", "ПТ", "СБ", "НД"][index]),
           selected: isSel,
           selectedColor: AppColors.primaryColor,
-          labelStyle: TextStyle(color: isSel ? Colors.black : Colors.white),
-          backgroundColor: Colors.white10,
+          labelStyle: TextStyle(
+            color: isSel ? Colors.black : AppColors.textWhite,
+          ),
+          backgroundColor: AppColors.cardColor,
           onSelected: (v) {
             setState(() {
               v
@@ -2783,12 +2290,12 @@ class _AddVitaminSheetState extends State<AddVitaminSheet> {
     return Row(
       children: [
         IconButton(
-          icon: const Icon(Icons.remove, color: Colors.white),
+          icon: Icon(Icons.remove, color: AppColors.textWhite),
           onPressed: () => val > 1 ? onChanged(val - 1) : null,
         ),
-        Text(text, style: const TextStyle(color: Colors.white)),
+        Text(text, style: TextStyle(color: AppColors.textWhite)),
         IconButton(
-          icon: const Icon(Icons.add, color: Colors.white),
+          icon: Icon(Icons.add, color: AppColors.textWhite),
           onPressed: () => onChanged(val + 1),
         ),
       ],
@@ -2802,7 +2309,7 @@ class _AddVitaminSheetState extends State<AddVitaminSheet> {
       decoration: BoxDecoration(
         color: AppColors.backgroundDark,
         borderRadius: const BorderRadius.vertical(top: Radius.circular(30)),
-        border: Border.all(color: Colors.white10),
+        border: Border.all(color: AppColors.cardColor),
       ),
       child: Column(
         children: [
@@ -2821,7 +2328,7 @@ class _AddVitaminSheetState extends State<AddVitaminSheet> {
                       decoration: BoxDecoration(
                         color: _currentStep == index
                             ? AppColors.primaryColor
-                            : Colors.white24,
+                            : AppColors.textSecondary.withValues(alpha: 0.2),
                         shape: BoxShape.circle,
                       ),
                     ),
@@ -2831,7 +2338,7 @@ class _AddVitaminSheetState extends State<AddVitaminSheet> {
                   onPressed: _nextPage,
                   child: Text(
                     _currentStep == 2 ? "ГОТОВО" : "ДАЛІ",
-                    style: const TextStyle(
+                    style: TextStyle(
                       color: AppColors.primaryColor,
                       fontWeight: FontWeight.bold,
                     ),
@@ -2840,7 +2347,7 @@ class _AddVitaminSheetState extends State<AddVitaminSheet> {
               ],
             ),
           ),
-          const Divider(color: Colors.white10, height: 1),
+          Divider(color: AppColors.cardColor, height: 1),
 
           Expanded(
             child: PageView(

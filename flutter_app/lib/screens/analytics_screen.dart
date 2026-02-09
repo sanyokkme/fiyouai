@@ -214,19 +214,19 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
           child: Row(
             children: [
               IconButton(
-                icon: const Icon(
+                icon: Icon(
                   Icons.arrow_back_ios,
-                  color: Colors.white,
+                  color: AppColors.textWhite,
                   size: 20,
                 ),
                 onPressed: () => Navigator.pop(context),
               ),
-              const Text(
+              Text(
                 'Аналітика',
                 style: TextStyle(
                   fontSize: 32,
                   fontWeight: FontWeight.bold,
-                  color: Colors.white,
+                  color: AppColors.textWhite,
                 ),
               ),
             ],
@@ -234,113 +234,121 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
         ),
         Expanded(
           child: Shimmer.fromColors(
-            baseColor: Colors.white.withValues(alpha: 0.05),
-            highlightColor: Colors.white.withValues(alpha: 0.1),
-            child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  // Summary cards (Середнє + Ціль)
-                  Row(
-                    children: [
-                      Expanded(
-                        child: Container(
-                          height: 80,
-                          decoration: BoxDecoration(
-                            color: Colors.black,
-                            borderRadius: BorderRadius.circular(16),
-                          ),
-                        ),
-                      ),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: Container(
-                          height: 80,
-                          decoration: BoxDecoration(
-                            color: Colors.black,
-                            borderRadius: BorderRadius.circular(16),
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 25),
-                  // Header: "Деталі раціону (сьогодні)"
-                  Container(
-                    width: 220,
-                    height: 18,
-                    decoration: BoxDecoration(
-                      color: Colors.black,
-                      borderRadius: BorderRadius.circular(4),
-                    ),
-                  ),
-                  const SizedBox(height: 15),
-                  // Macros detail card with 3 progress bars
-                  Container(
-                    height: 240,
-                    padding: const EdgeInsets.all(25),
-                    decoration: BoxDecoration(
-                      color: Colors.black,
-                      borderRadius: BorderRadius.circular(24),
-                    ),
-                    child: Column(
+            baseColor: AppColors.textGrey.withValues(alpha: 0.1),
+            highlightColor: AppColors.textGrey.withValues(alpha: 0.3),
+            child: SingleChildScrollView(
+              child: Padding(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 20,
+                  vertical: 10,
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    // Summary cards (Середнє + Ціль)
+                    Row(
                       children: [
-                        _buildSkeletonProgressBar(),
-                        const SizedBox(height: 25),
-                        _buildSkeletonProgressBar(),
-                        const SizedBox(height: 25),
-                        _buildSkeletonProgressBar(),
+                        Expanded(
+                          child: Container(
+                            height: 80,
+                            decoration: BoxDecoration(
+                              color: AppColors.glassCardColor,
+                              borderRadius: BorderRadius.circular(16),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: Container(
+                            height: 80,
+                            decoration: BoxDecoration(
+                              color: AppColors.glassCardColor,
+                              borderRadius: BorderRadius.circular(16),
+                            ),
+                          ),
+                        ),
                       ],
                     ),
-                  ),
-                  const SizedBox(height: 25),
-                  // Header: "Динаміка за 7 днів"
-                  Container(
-                    width: 180,
-                    height: 18,
-                    decoration: BoxDecoration(
-                      color: Colors.black,
-                      borderRadius: BorderRadius.circular(4),
+                    const SizedBox(height: 25),
+                    // Header: "Деталі раціону (сьогодні)"
+                    Container(
+                      width: 220,
+                      height: 18,
+                      decoration: BoxDecoration(
+                        color: AppColors.glassCardColor,
+                        borderRadius: BorderRadius.circular(4),
+                      ),
                     ),
-                  ),
-                  const SizedBox(height: 15),
-                  // Metric selector chips
-                  Row(
-                    children: List.generate(
-                      5,
-                      (index) => Padding(
-                        padding: const EdgeInsets.only(right: 8.0),
-                        child: Container(
-                          width: 90,
-                          height: 32,
-                          decoration: BoxDecoration(
-                            color: Colors.black,
-                            borderRadius: BorderRadius.circular(16),
+                    const SizedBox(height: 15),
+                    // Macros detail card with 3 progress bars
+                    Container(
+                      height: 240,
+                      padding: const EdgeInsets.all(25),
+                      decoration: BoxDecoration(
+                        color: AppColors.glassCardColor,
+                        borderRadius: BorderRadius.circular(24),
+                      ),
+                      child: Column(
+                        children: [
+                          _buildSkeletonProgressBar(),
+                          const SizedBox(height: 25),
+                          _buildSkeletonProgressBar(),
+                          const SizedBox(height: 25),
+                          _buildSkeletonProgressBar(),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 25),
+                    // Header: "Динаміка за 7 днів"
+                    Container(
+                      width: 180,
+                      height: 18,
+                      decoration: BoxDecoration(
+                        color: AppColors.glassCardColor,
+                        borderRadius: BorderRadius.circular(4),
+                      ),
+                    ),
+                    const SizedBox(height: 15),
+                    // Metric selector chips
+                    SingleChildScrollView(
+                      scrollDirection: Axis.horizontal,
+                      child: Row(
+                        children: List.generate(
+                          5,
+                          (index) => Padding(
+                            padding: const EdgeInsets.only(right: 8.0),
+                            child: Container(
+                              width: 90,
+                              height: 32,
+                              decoration: BoxDecoration(
+                                color: AppColors.glassCardColor,
+                                borderRadius: BorderRadius.circular(16),
+                              ),
+                            ),
                           ),
                         ),
                       ),
                     ),
-                  ),
-                  const SizedBox(height: 15),
-                  // Chart card
-                  Container(
-                    height: 400,
-                    decoration: BoxDecoration(
-                      color: Colors.black,
-                      borderRadius: BorderRadius.circular(24),
+                    const SizedBox(height: 15),
+                    // Chart card
+                    Container(
+                      height: 400,
+                      decoration: BoxDecoration(
+                        color: AppColors.glassCardColor,
+                        borderRadius: BorderRadius.circular(24),
+                      ),
                     ),
-                  ),
-                  const SizedBox(height: 25),
-                  // AI Summary card placeholder
-                  Container(
-                    height: 140,
-                    decoration: BoxDecoration(
-                      color: Colors.black,
-                      borderRadius: BorderRadius.circular(24),
+                    const SizedBox(height: 25),
+                    // AI Summary card placeholder
+                    Container(
+                      height: 140,
+                      decoration: BoxDecoration(
+                        color: AppColors.glassCardColor,
+                        borderRadius: BorderRadius.circular(24),
+                      ),
                     ),
-                  ),
-                ],
+                  ],
+                ),
               ),
             ),
           ),
@@ -359,7 +367,7 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
               width: 60,
               height: 14,
               decoration: BoxDecoration(
-                color: Colors.white.withValues(alpha: 0.1),
+                color: AppColors.textSecondary.withValues(alpha: 0.2),
                 borderRadius: BorderRadius.circular(4),
               ),
             ),
@@ -367,7 +375,7 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
               width: 80,
               height: 14,
               decoration: BoxDecoration(
-                color: Colors.white.withValues(alpha: 0.1),
+                color: AppColors.textSecondary.withValues(alpha: 0.2),
                 borderRadius: BorderRadius.circular(4),
               ),
             ),
@@ -378,7 +386,7 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
           height: 12,
           width: double.infinity,
           decoration: BoxDecoration(
-            color: Colors.white.withValues(alpha: 0.1),
+            color: AppColors.textSecondary.withValues(alpha: 0.2),
             borderRadius: BorderRadius.circular(6),
           ),
         ),
@@ -388,9 +396,9 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: AppColors.backgroundDark,
-      body: AppColors.buildBackgroundWithBlurSpots(
+    return Container(
+      color: AppColors.backgroundDark,
+      child: AppColors.buildBackgroundWithBlurSpots(
         child: SafeArea(
           child: _isLoading && _chartData.isEmpty
               ? _buildSkeleton()
@@ -401,20 +409,12 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
                       padding: const EdgeInsets.fromLTRB(25, 20, 25, 10),
                       child: Row(
                         children: [
-                          IconButton(
-                            icon: const Icon(
-                              Icons.arrow_back_ios,
-                              color: Colors.white,
-                              size: 20,
-                            ),
-                            onPressed: () => Navigator.pop(context),
-                          ),
-                          const Text(
+                          Text(
                             'Аналітика',
                             style: TextStyle(
                               fontSize: 32,
                               fontWeight: FontWeight.bold,
-                              color: Colors.white,
+                              color: AppColors.textWhite,
                             ),
                           ),
                         ],
@@ -435,10 +435,10 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
                               _buildSummaryCards(),
                               const SizedBox(height: 25),
 
-                              const Text(
+                              Text(
                                 "Деталі раціону (сьогодні)",
                                 style: TextStyle(
-                                  color: Colors.white,
+                                  color: AppColors.textWhite,
                                   fontSize: 18,
                                   fontWeight: FontWeight.bold,
                                 ),
@@ -447,10 +447,10 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
                               _buildMacrosDetailCard(),
 
                               const SizedBox(height: 25),
-                              const Text(
+                              Text(
                                 "Динаміка за 7 днів",
                                 style: TextStyle(
-                                  color: Colors.white,
+                                  color: AppColors.textWhite,
                                   fontSize: 18,
                                   fontWeight: FontWeight.bold,
                                 ),
@@ -511,9 +511,9 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
     return Container(
       padding: const EdgeInsets.symmetric(vertical: 15, horizontal: 15),
       decoration: BoxDecoration(
-        color: Colors.white.withValues(alpha: 0.05),
+        color: AppColors.glassCardColor,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: Colors.white10),
+        border: Border.all(color: AppColors.textWhite.withValues(alpha: 0.1)),
       ),
       child: Row(
         children: [
@@ -531,7 +531,7 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
             children: [
               Text(
                 title,
-                style: const TextStyle(color: Colors.white60, fontSize: 12),
+                style: TextStyle(color: AppColors.textSecondary, fontSize: 12),
               ),
               const SizedBox(height: 2),
               RichText(
@@ -539,17 +539,17 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
                   children: [
                     TextSpan(
                       text: value,
-                      style: const TextStyle(
+                      style: TextStyle(
                         fontSize: 18,
                         fontWeight: FontWeight.bold,
-                        color: Colors.white,
+                        color: AppColors.textWhite,
                       ),
                     ),
                     TextSpan(
                       text: " $unit",
-                      style: const TextStyle(
+                      style: TextStyle(
                         fontSize: 10,
-                        color: Colors.white38,
+                        color: AppColors.textSecondary,
                       ),
                     ),
                   ],
@@ -615,9 +615,9 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
         }
       },
       selectedColor: color,
-      backgroundColor: Colors.white.withValues(alpha: 0.05),
+      backgroundColor: AppColors.glassCardColor,
       labelStyle: TextStyle(
-        color: isSelected ? Colors.black : Colors.white,
+        color: isSelected ? Colors.black : AppColors.textWhite,
         fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
         fontSize: 13,
       ),
@@ -634,9 +634,9 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
       height: 400,
       padding: const EdgeInsets.fromLTRB(10, 15, 20, 10),
       decoration: BoxDecoration(
-        color: const Color(0xFF151515),
+        color: AppColors.glassCardColor,
         borderRadius: BorderRadius.circular(24),
-        border: Border.all(color: Colors.white10),
+        border: Border.all(color: AppColors.glassCardColor),
       ),
       child: Column(
         children: [
@@ -647,8 +647,8 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
               children: [
                 Text(
                   _metricNames[_orderedMetrics[_currentIndex]] ?? "Графік",
-                  style: const TextStyle(
-                    color: Colors.white,
+                  style: TextStyle(
+                    color: AppColors.textWhite,
                     fontSize: 16,
                     fontWeight: FontWeight.bold,
                   ),
@@ -656,7 +656,7 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
                 Container(
                   padding: const EdgeInsets.all(2),
                   decoration: BoxDecoration(
-                    color: Colors.white.withValues(alpha: 0.1),
+                    color: AppColors.glassCardColor,
                     borderRadius: BorderRadius.circular(8),
                   ),
                   child: Row(
@@ -698,7 +698,7 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
                 decoration: BoxDecoration(
                   color: _currentIndex == index
                       ? _metricColors[_orderedMetrics[index]]
-                      : Colors.white24,
+                      : AppColors.textSecondary.withValues(alpha: 0.3),
                   borderRadius: BorderRadius.circular(3),
                 ),
               );
@@ -736,7 +736,7 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
     // Common Horizontal Line definition
     final targetLine = HorizontalLine(
       y: target,
-      color: Colors.white.withValues(alpha: 0.5),
+      color: AppColors.textWhite.withValues(alpha: 0.5),
       strokeWidth: 1,
       dashArray: [5, 5],
       label: HorizontalLineLabel(
@@ -744,8 +744,8 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
         alignment: Alignment.topRight,
         padding: const EdgeInsets.only(right: 5, bottom: 5),
         labelResolver: (_) => "Ціль: ${target.toInt()}",
-        style: const TextStyle(
-          color: Colors.white,
+        style: TextStyle(
+          color: AppColors.textWhite,
           fontSize: 10,
           fontWeight: FontWeight.bold,
           shadows: [Shadow(color: Colors.black, blurRadius: 2)],
@@ -830,7 +830,9 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
         child: Icon(
           icon,
           size: 20,
-          color: isActive ? AppColors.primaryColor : Colors.white24,
+          color: isActive
+              ? AppColors.primaryColor
+              : AppColors.textSecondary.withValues(alpha: 0.3),
         ),
       ),
     );
@@ -861,7 +863,9 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
                 child: Text(
                   _getDayName(date),
                   style: TextStyle(
-                    color: isToday ? Colors.white : Colors.white38,
+                    color: isToday
+                        ? AppColors.textWhite
+                        : AppColors.textSecondary,
                     fontSize: 12,
                     fontWeight: FontWeight.bold,
                   ),
@@ -881,8 +885,10 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
       show: true,
       drawVerticalLine: false,
       horizontalInterval: interval,
-      getDrawingHorizontalLine: (value) =>
-          FlLine(color: Colors.white.withValues(alpha: 0.05), strokeWidth: 1),
+      getDrawingHorizontalLine: (value) => FlLine(
+        color: AppColors.textWhite.withValues(alpha: 0.05),
+        strokeWidth: 1,
+      ),
     );
   }
 
@@ -926,7 +932,7 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
               backDrawRodData: BackgroundBarChartRodData(
                 show: true,
                 toY: maxY,
-                color: Colors.white.withValues(alpha: 0.02),
+                color: AppColors.textWhite.withValues(alpha: 0.02),
               ),
             ),
           ],
@@ -1057,9 +1063,9 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
     return Container(
       padding: const EdgeInsets.all(25),
       decoration: BoxDecoration(
-        color: Colors.white.withValues(alpha: 0.05),
+        color: AppColors.glassCardColor,
         borderRadius: BorderRadius.circular(24),
-        border: Border.all(color: Colors.white10),
+        border: Border.all(color: AppColors.glassCardColor),
       ),
       child: Column(
         children: [
@@ -1098,8 +1104,8 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
           children: [
             Text(
               label,
-              style: const TextStyle(
-                color: Colors.white,
+              style: TextStyle(
+                color: AppColors.textWhite,
                 fontWeight: FontWeight.bold,
                 fontSize: 16,
               ),
@@ -1117,7 +1123,10 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
                   ),
                   TextSpan(
                     text: " / ${target}г",
-                    style: const TextStyle(color: Colors.white38, fontSize: 14),
+                    style: TextStyle(
+                      color: AppColors.textSecondary,
+                      fontSize: 14,
+                    ),
                   ),
                 ],
               ),
@@ -1131,7 +1140,7 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
               height: 12,
               width: double.infinity,
               decoration: BoxDecoration(
-                color: Colors.white10,
+                color: AppColors.textWhite.withValues(alpha: 0.1),
                 borderRadius: BorderRadius.circular(6),
               ),
             ),
@@ -1182,13 +1191,9 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
         children: [
           Row(
             children: [
-              const Icon(
-                Icons.auto_awesome,
-                color: AppColors.primaryColor,
-                size: 24,
-              ),
+              Icon(Icons.auto_awesome, color: AppColors.primaryColor, size: 24),
               const SizedBox(width: 10),
-              const Text(
+              Text(
                 "AI Аналіз тижня",
                 style: TextStyle(
                   color: AppColors.primaryColor,
@@ -1201,8 +1206,8 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
           const SizedBox(height: 12),
           Text(
             _aiSummary!,
-            style: const TextStyle(
-              color: Colors.white,
+            style: TextStyle(
+              color: AppColors.textWhite,
               fontSize: 14,
               height: 1.5,
             ),

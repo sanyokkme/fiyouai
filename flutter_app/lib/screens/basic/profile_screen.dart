@@ -7,6 +7,7 @@ import 'dart:convert';
 import '../../services/auth_service.dart';
 import '../../constants/app_colors.dart';
 import '../recipe_book_screen.dart';
+import '../settings/settings_screen.dart';
 
 class ProfileScreen extends StatefulWidget {
   const ProfileScreen({super.key});
@@ -149,8 +150,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
   // --- SKELETON LOADER ---
   Widget _buildSkeleton() {
     return Shimmer.fromColors(
-      baseColor: Colors.white.withValues(alpha: 0.05),
-      highlightColor: Colors.white.withValues(alpha: 0.1),
+      baseColor: AppColors.cardColor,
+      highlightColor: AppColors.textSecondary.withValues(alpha: 0.1),
       child: SingleChildScrollView(
         padding: const EdgeInsets.symmetric(horizontal: 24),
         child: Column(
@@ -198,18 +199,18 @@ class _ProfileScreenState extends State<ProfileScreen> {
           backgroundColor: Colors.transparent,
           elevation: 0,
           leading: IconButton(
-            icon: const Icon(Icons.arrow_back, color: Colors.white),
+            icon: Icon(Icons.arrow_back, color: AppColors.textWhite),
             onPressed: () => Navigator.pop(context),
           ),
-          title: const Text('Профіль', style: TextStyle(color: Colors.white)),
+          title: Text('Профіль', style: TextStyle(color: AppColors.textWhite)),
         ),
         body: AppColors.buildBackgroundWithBlurSpots(child: _buildSkeleton()),
       );
     }
 
-    return Scaffold(
-      backgroundColor: AppColors.backgroundDark,
-      body: AppColors.buildBackgroundWithBlurSpots(
+    return Container(
+      color: AppColors.backgroundDark,
+      child: AppColors.buildBackgroundWithBlurSpots(
         child: SafeArea(
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -218,20 +219,37 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 padding: const EdgeInsets.fromLTRB(25, 20, 25, 10),
                 child: Row(
                   children: [
-                    IconButton(
-                      icon: const Icon(
-                        Icons.arrow_back_ios,
-                        color: Colors.white,
-                        size: 20,
-                      ),
-                      onPressed: () => Navigator.pop(context),
-                    ),
-                    const Text(
+                    Text(
                       'Профіль',
                       style: TextStyle(
                         fontSize: 32,
                         fontWeight: FontWeight.bold,
-                        color: Colors.white,
+                        color: AppColors.textWhite,
+                      ),
+                    ),
+
+                    const Spacer(),
+                    IconButton(
+                      icon: Icon(
+                        Icons.settings_outlined,
+                        color: AppColors.textWhite,
+                        size: 28,
+                      ),
+                      onPressed: () => Navigator.push(
+                        context,
+                        PageRouteBuilder(
+                          pageBuilder:
+                              (context, animation, secondaryAnimation) =>
+                                  const SettingsScreen(),
+                          transitionsBuilder:
+                              (context, animation, secondaryAnimation, child) {
+                                return FadeTransition(
+                                  opacity: animation,
+                                  child: child,
+                                );
+                              },
+                          transitionDuration: const Duration(milliseconds: 400),
+                        ),
                       ),
                     ),
                   ],
@@ -247,8 +265,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       const SizedBox(height: 15),
                       Text(
                         _userData?['email'] ?? "Пошта не вказана",
-                        style: const TextStyle(
-                          color: Colors.white70,
+                        style: TextStyle(
+                          color: AppColors.textSecondary,
                           fontSize: 16,
                         ),
                       ),
@@ -316,6 +334,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       ),
 
                       const SizedBox(height: 25),
+
                       _buildActionButton(
                         "Моя Книга Рецептів",
                         Icons.menu_book_rounded,
@@ -343,8 +362,30 @@ class _ProfileScreenState extends State<ProfileScreen> {
                           ),
                         ),
                       ),
-                      const Divider(color: Colors.white10, height: 60),
-                      _buildLogoutButton(),
+                      Divider(color: AppColors.cardColor, height: 60),
+                      _buildOptionTile(
+                        title: 'Видалити обліковий запис',
+                        icon: Icons.delete_outline,
+                        iconColor: Colors.redAccent,
+                        titleColor: Colors.redAccent,
+                        onTap: _showDeleteConfirmation,
+                      ),
+                      const SizedBox(height: 15),
+                      _buildOptionTile(
+                        title: 'Вийти з акаунту',
+                        icon: Icons.logout,
+                        iconColor: AppColors.iconColor,
+                        titleColor: AppColors.textWhite,
+                        onTap: () async {
+                          await _authService.logout();
+                          if (mounted) {
+                            Navigator.of(context).pushNamedAndRemoveUntil(
+                              '/welcome',
+                              (route) => false,
+                            );
+                          }
+                        },
+                      ),
                       const SizedBox(height: 40),
                     ],
                   ),
@@ -365,7 +406,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
         children: [
           CircleAvatar(
             radius: 60,
-            backgroundColor: Colors.white10,
+            backgroundColor: AppColors.cardColor,
             backgroundImage:
                 (_userData?['avatar_url'] != null &&
                     _userData?['avatar_url'] != "")
@@ -374,11 +415,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
             child:
                 (_userData?['avatar_url'] == null ||
                     _userData?['avatar_url'] == "")
-                ? const Icon(
-                    Icons.person,
-                    size: 60,
-                    color: AppColors.primaryColor,
-                  )
+                ? Icon(Icons.person, size: 60, color: AppColors.primaryColor)
                 : null,
           ),
           Positioned(
@@ -388,7 +425,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
               onTap: _uploadAvatar,
               child: Container(
                 padding: const EdgeInsets.all(8),
-                decoration: const BoxDecoration(
+                decoration: BoxDecoration(
                   color: AppColors.primaryColor,
                   shape: BoxShape.circle,
                 ),
@@ -433,7 +470,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
           const SizedBox(width: 10),
           Text(
             _getGoalTranslation(goal).toUpperCase(),
-            style: const TextStyle(
+            style: TextStyle(
               color: AppColors.primaryColor,
               fontWeight: FontWeight.bold,
               fontSize: 12,
@@ -458,7 +495,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
       margin: const EdgeInsets.only(bottom: 15),
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: const Color(0xFF1E1E1E),
+        color: AppColors.glassCardColor,
         borderRadius: BorderRadius.circular(15),
       ),
       child: Row(
@@ -467,7 +504,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
           const SizedBox(width: 15),
           Text(
             label,
-            style: const TextStyle(color: Colors.white70, fontSize: 16),
+            style: TextStyle(color: AppColors.textSecondary, fontSize: 16),
           ),
           const Spacer(),
           if (customTrailing != null)
@@ -479,15 +516,19 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 children: [
                   Text(
                     value,
-                    style: const TextStyle(
-                      color: Colors.white,
+                    style: TextStyle(
+                      color: AppColors.textWhite,
                       fontWeight: FontWeight.bold,
                       fontSize: 16,
                     ),
                   ),
                   if (editable) ...[
                     const SizedBox(width: 10),
-                    const Icon(Icons.edit, color: Colors.white24, size: 16),
+                    Icon(
+                      Icons.edit,
+                      color: AppColors.textSecondary.withValues(alpha: 0.3),
+                      size: 16,
+                    ),
                   ],
                 ],
               ),
@@ -534,20 +575,77 @@ class _ProfileScreenState extends State<ProfileScreen> {
           children: [
             Icon(icon, color: AppColors.primaryColor),
             const SizedBox(width: 15),
-            Text(
-              title,
-              style: const TextStyle(
-                color: Colors.white,
-                fontWeight: FontWeight.bold,
+            Expanded(
+              child: Text(
+                title,
+                style: TextStyle(
+                  color: AppColors.textWhite,
+                  fontWeight: FontWeight.bold,
+                ),
+                overflow: TextOverflow.ellipsis,
               ),
             ),
-            const Spacer(),
-            const Icon(
+            const SizedBox(width: 8),
+            Icon(
               Icons.arrow_forward_ios,
               color: AppColors.primaryColor,
               size: 16,
             ),
           ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildOptionTile({
+    required String title,
+    required IconData icon,
+    Color? iconColor,
+    Color? titleColor,
+    required VoidCallback onTap,
+  }) {
+    return Container(
+      margin: const EdgeInsets.only(bottom: 15),
+      decoration: BoxDecoration(
+        color: AppColors.glassCardColor,
+        borderRadius: BorderRadius.circular(15),
+        border: Border.all(color: AppColors.glassCardColor),
+      ),
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          borderRadius: BorderRadius.circular(15),
+          onTap: onTap,
+          child: Padding(
+            padding: const EdgeInsets.all(18),
+            child: Row(
+              children: [
+                Icon(
+                  icon,
+                  color: iconColor ?? AppColors.primaryColor,
+                  size: 24,
+                ),
+                const SizedBox(width: 16),
+                Expanded(
+                  child: Text(
+                    title,
+                    style: TextStyle(
+                      color: titleColor ?? AppColors.textWhite,
+                      fontSize: 16,
+                      fontWeight: FontWeight.w500,
+                    ),
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Icon(
+                  Icons.arrow_forward_ios,
+                  color: iconColor ?? AppColors.primaryColor,
+                  size: 16,
+                ),
+              ],
+            ),
+          ),
         ),
       ),
     );
@@ -574,8 +672,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
       backgroundColor: Colors.transparent,
       builder: (context) => Container(
         height: 350,
-        decoration: const BoxDecoration(
-          color: Color(0xFF1E1E1E),
+        decoration: BoxDecoration(
+          color: AppColors.cardColor,
           borderRadius: BorderRadius.vertical(top: Radius.circular(30)),
         ),
         child: Column(
@@ -588,15 +686,15 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 children: [
                   Text(
                     "Змінити $title",
-                    style: const TextStyle(
-                      color: Colors.white,
+                    style: TextStyle(
+                      color: AppColors.textWhite,
                       fontSize: 20,
                       fontWeight: FontWeight.bold,
                     ),
                   ),
                   IconButton(
                     onPressed: () => Navigator.pop(context),
-                    icon: const Icon(Icons.close, color: Colors.white54),
+                    icon: Icon(Icons.close, color: AppColors.textSecondary),
                   ),
                 ],
               ),
@@ -622,8 +720,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     return Center(
                       child: Text(
                         "$value $unit",
-                        style: const TextStyle(
-                          color: Colors.white,
+                        style: TextStyle(
+                          color: AppColors.textWhite,
                           fontSize: 28,
                           fontWeight: FontWeight.bold,
                         ),
@@ -665,28 +763,68 @@ class _ProfileScreenState extends State<ProfileScreen> {
     );
   }
 
-  Widget _buildLogoutButton() {
-    return SizedBox(
-      width: double.infinity,
-      child: TextButton(
-        style: TextButton.styleFrom(
-          padding: const EdgeInsets.symmetric(vertical: 15),
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(15),
-            side: const BorderSide(color: Colors.redAccent),
-          ),
+  void _showDeleteConfirmation() {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        backgroundColor: AppColors.cardColor,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        title: Text(
+          'Видалити обліковий запис?',
+          style: TextStyle(color: AppColors.textWhite),
         ),
-        onPressed: () async {
-          await _authService.logout();
-          if (mounted) Navigator.pushReplacementNamed(context, '/login');
-        },
-        child: const Text(
-          "ВИЙТИ З АККАУНТУ",
-          style: TextStyle(
-            color: Colors.redAccent,
-            fontWeight: FontWeight.bold,
-          ),
+        content: Text(
+          'Ця дія незворотна. Всі ваші дані будуть видалені.',
+          style: TextStyle(color: AppColors.textSecondary),
         ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: Text(
+              'Скасувати',
+              style: TextStyle(color: AppColors.textWhite),
+            ),
+          ),
+          TextButton(
+            onPressed: () async {
+              Navigator.pop(context); // Close dialog
+
+              setState(() => _isLoading = true); // Show loading
+
+              try {
+                final userId = await AuthService.getStoredUserId();
+                if (userId != null) {
+                  await _authService.deleteAccount(userId);
+                  if (mounted) {
+                    Navigator.of(
+                      context,
+                    ).pushNamedAndRemoveUntil('/welcome', (route) => false);
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(
+                        content: Text("Акаунт видалено"),
+                        backgroundColor: Colors.red,
+                      ),
+                    );
+                  }
+                }
+              } catch (e) {
+                if (mounted) {
+                  setState(() => _isLoading = false);
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text("Помилка: $e"),
+                      backgroundColor: Colors.red,
+                    ),
+                  );
+                }
+              }
+            },
+            child: const Text(
+              'Видалити',
+              style: TextStyle(color: Colors.redAccent),
+            ),
+          ),
+        ],
       ),
     );
   }

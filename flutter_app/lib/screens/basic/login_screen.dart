@@ -129,7 +129,7 @@ class _LoginScreenState extends State<LoginScreen> {
                           builder: (context) => const ForgotPasswordScreen(),
                         ),
                       ),
-                      child: const Text(
+                      child: Text(
                         "Забули пароль?",
                         style: TextStyle(
                           color: AppColors.primaryColor,
@@ -174,7 +174,7 @@ class _LoginScreenState extends State<LoginScreen> {
                   const SizedBox(height: 40),
 
                   _loading
-                      ? const Center(
+                      ? Center(
                           child: CircularProgressIndicator(
                             color: AppColors.primaryColor,
                           ),
@@ -213,7 +213,7 @@ class _LoginScreenState extends State<LoginScreen> {
                         Navigator.pushNamed(context, '/onboarding');
                       },
                       child: RichText(
-                        text: const TextSpan(
+                        text: TextSpan(
                           text: "Немає аккаунту? ",
                           style: TextStyle(color: Colors.white70, fontSize: 16),
                           children: [

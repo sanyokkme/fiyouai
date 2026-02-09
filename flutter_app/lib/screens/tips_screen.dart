@@ -53,8 +53,8 @@ class _TipsScreenState extends State<TipsScreen> {
   // --- SKELETON LOADER (Той самий, що був) ---
   Widget _buildSkeleton() {
     return Shimmer.fromColors(
-      baseColor: Colors.white.withValues(alpha: 0.05),
-      highlightColor: Colors.white.withValues(alpha: 0.1),
+      baseColor: AppColors.textGrey.withValues(alpha: 0.1),
+      highlightColor: AppColors.textGrey.withValues(alpha: 0.3),
       child: Padding(
         padding: const EdgeInsets.all(24),
         child: Column(
@@ -90,9 +90,9 @@ class _TipsScreenState extends State<TipsScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: AppColors.backgroundDark,
-      body: AppColors.buildBackgroundWithBlurSpots(
+    return Container(
+      color: AppColors.backgroundDark,
+      child: AppColors.buildBackgroundWithBlurSpots(
         child: SafeArea(
           child: _isLoading
               ? Column(
@@ -102,20 +102,12 @@ class _TipsScreenState extends State<TipsScreen> {
                       padding: const EdgeInsets.fromLTRB(25, 20, 25, 10),
                       child: Row(
                         children: [
-                          IconButton(
-                            icon: const Icon(
-                              Icons.arrow_back_ios,
-                              color: Colors.white,
-                              size: 20,
-                            ),
-                            onPressed: () => Navigator.pop(context),
-                          ),
-                          const Text(
+                          Text(
                             'AI Поради',
                             style: TextStyle(
                               fontSize: 32,
                               fontWeight: FontWeight.bold,
-                              color: Colors.white,
+                              color: AppColors.textWhite,
                             ),
                           ),
                         ],
@@ -131,20 +123,12 @@ class _TipsScreenState extends State<TipsScreen> {
                       padding: const EdgeInsets.fromLTRB(25, 20, 25, 10),
                       child: Row(
                         children: [
-                          IconButton(
-                            icon: const Icon(
-                              Icons.arrow_back_ios,
-                              color: Colors.white,
-                              size: 20,
-                            ),
-                            onPressed: () => Navigator.pop(context),
-                          ),
-                          const Text(
+                          Text(
                             'AI Поради',
                             style: TextStyle(
                               fontSize: 32,
                               fontWeight: FontWeight.bold,
-                              color: Colors.white,
+                              color: AppColors.textWhite,
                             ),
                           ),
                         ],
@@ -158,10 +142,10 @@ class _TipsScreenState extends State<TipsScreen> {
                           children: [
                             _buildHeaderCard(),
                             const SizedBox(height: 30),
-                            const Text(
+                            Text(
                               "Персональні рекомендації",
                               style: TextStyle(
-                                color: Colors.white,
+                                color: AppColors.textWhite,
                                 fontSize: 20,
                                 fontWeight: FontWeight.bold,
                               ),
@@ -179,7 +163,7 @@ class _TipsScreenState extends State<TipsScreen> {
                                 "Нові поради з'являться при наступному вході в додаток",
                                 textAlign: TextAlign.center,
                                 style: TextStyle(
-                                  color: Colors.white.withValues(alpha: 0.3),
+                                  color: AppColors.textSecondary,
                                   fontSize: 12,
                                 ),
                               ),
@@ -215,17 +199,13 @@ class _TipsScreenState extends State<TipsScreen> {
       ),
       child: Row(
         children: [
-          const Icon(
-            Icons.auto_awesome,
-            color: AppColors.primaryColor,
-            size: 40,
-          ),
+          Icon(Icons.auto_awesome, color: AppColors.primaryColor, size: 40),
           const SizedBox(width: 15),
           Expanded(
             child: Text(
               _aiData?['summary'] ?? "Аналізуємо ваш раціон...",
-              style: const TextStyle(
-                color: Colors.white,
+              style: TextStyle(
+                color: AppColors.textWhite,
                 fontSize: 16,
                 fontWeight: FontWeight.w500,
                 height: 1.4,
@@ -242,16 +222,16 @@ class _TipsScreenState extends State<TipsScreen> {
       margin: const EdgeInsets.only(bottom: 15),
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: const Color(0xFF1E1E1E),
+        color: AppColors.glassCardColor,
         borderRadius: BorderRadius.circular(15),
-        border: Border.all(color: Colors.white.withValues(alpha: 0.05)),
+        border: Border.all(color: AppColors.glassCardColor),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
             tip['title'] ?? "",
-            style: const TextStyle(
+            style: TextStyle(
               color: AppColors.primaryColor,
               fontWeight: FontWeight.bold,
               fontSize: 16,
@@ -260,8 +240,8 @@ class _TipsScreenState extends State<TipsScreen> {
           const SizedBox(height: 8),
           Text(
             tip['text'] ?? "",
-            style: const TextStyle(
-              color: Colors.white70,
+            style: TextStyle(
+              color: AppColors.textSecondary,
               fontSize: 14,
               height: 1.5,
             ),

@@ -1,0 +1,108 @@
+Analyzing flutter_app...                                        
+
+   info • Constructors in '@immutable' classes should be declared as 'const' • lib/main.dart:43:3 • prefer_const_constructors_in_immutables
+   info • Don't invoke 'print' in production code • lib/screens/analytics_screen.dart:82:7 • avoid_print
+   info • Don't invoke 'print' in production code • lib/screens/analytics_screen.dart:114:7 • avoid_print
+   info • Don't invoke 'print' in production code • lib/screens/analytics_screen.dart:124:5 • avoid_print
+   info • Don't invoke 'print' in production code • lib/screens/analytics_screen.dart:125:5 • avoid_print
+   info • Don't invoke 'print' in production code • lib/screens/analytics_screen.dart:126:5 • avoid_print
+   info • Don't invoke 'print' in production code • lib/screens/analytics_screen.dart:130:5 • avoid_print
+   info • Don't invoke 'print' in production code • lib/screens/analytics_screen.dart:131:5 • avoid_print
+   info • Don't invoke 'print' in production code • lib/screens/analytics_screen.dart:144:5 • avoid_print
+   info • Unnecessary braces in a string interpolation • lib/screens/analytics_screen.dart:1119:31 • unnecessary_brace_in_string_interps
+   info • Don't use 'BuildContext's across async gaps • lib/screens/basic/forgot_password_screen.dart:29:28 • use_build_context_synchronously
+   info • The private field _showAllVitamins could be 'final' • lib/screens/basic/home_screen.dart:44:8 • prefer_final_fields
+   info • Don't invoke 'print' in production code • lib/screens/basic/home_screen.dart:145:9 • avoid_print
+   info • Don't invoke 'print' in production code • lib/screens/basic/home_screen.dart:146:9 • avoid_print
+   info • Don't invoke 'print' in production code • lib/screens/basic/home_screen.dart:147:9 • avoid_print
+   info • Don't invoke 'print' in production code • lib/screens/basic/home_screen.dart:148:9 • avoid_print
+   info • Don't invoke 'print' in production code • lib/screens/basic/home_screen.dart:149:9 • avoid_print
+   info • Don't invoke 'print' in production code • lib/screens/basic/home_screen.dart:150:9 • avoid_print
+   info • Don't invoke 'print' in production code • lib/screens/basic/home_screen.dart:151:9 • avoid_print
+   info • Don't invoke 'print' in production code • lib/screens/basic/home_screen.dart:152:9 • avoid_print
+   info • Don't invoke 'print' in production code • lib/screens/basic/home_screen.dart:153:9 • avoid_print
+   info • Don't invoke 'print' in production code • lib/screens/basic/home_screen.dart:154:9 • avoid_print
+   info • Don't invoke 'print' in production code • lib/screens/basic/home_screen.dart:155:9 • avoid_print
+   info • Don't invoke 'print' in production code • lib/screens/basic/home_screen.dart:156:9 • avoid_print
+   info • Don't invoke 'print' in production code • lib/screens/basic/home_screen.dart:157:9 • avoid_print
+   info • Don't invoke 'print' in production code • lib/screens/basic/home_screen.dart:158:9 • avoid_print
+   info • Don't invoke 'print' in production code • lib/screens/basic/home_screen.dart:159:9 • avoid_print
+   info • Don't invoke 'print' in production code • lib/screens/basic/home_screen.dart:160:9 • avoid_print
+   info • Don't invoke 'print' in production code • lib/screens/basic/home_screen.dart:161:9 • avoid_print
+   info • Don't invoke 'print' in production code • lib/screens/basic/home_screen.dart:162:9 • avoid_print
+   info • Don't invoke 'print' in production code • lib/screens/basic/home_screen.dart:163:9 • avoid_print
+   info • Don't invoke 'print' in production code • lib/screens/basic/home_screen.dart:1723:5 • avoid_print
+   info • Don't invoke 'print' in production code • lib/screens/basic/home_screen.dart:1724:5 • avoid_print
+   info • Don't invoke 'print' in production code • lib/screens/basic/home_screen.dart:1725:5 • avoid_print
+   info • Don't invoke 'print' in production code • lib/screens/basic/home_screen.dart:1726:5 • avoid_print
+   info • Don't invoke 'print' in production code • lib/screens/basic/home_screen.dart:1727:5 • avoid_print
+   info • Don't invoke 'print' in production code • lib/screens/basic/home_screen.dart:1728:5 • avoid_print
+   info • Don't invoke 'print' in production code • lib/screens/basic/home_screen.dart:1729:5 • avoid_print
+   info • Don't invoke 'print' in production code • lib/screens/basic/home_screen.dart:1730:5 • avoid_print
+   info • Don't invoke 'print' in production code • lib/screens/basic/home_screen.dart:1731:5 • avoid_print
+   info • Don't invoke 'print' in production code • lib/screens/basic/home_screen.dart:1732:5 • avoid_print
+   info • Unnecessary braces in a string interpolation • lib/screens/basic/home_screen.dart:1732:23 • unnecessary_brace_in_string_interps
+   info • Don't invoke 'print' in production code • lib/screens/basic/home_screen.dart:1733:5 • avoid_print
+   info • Unnecessary braces in a string interpolation • lib/screens/basic/home_screen.dart:1733:22 • unnecessary_brace_in_string_interps
+   info • Don't invoke 'print' in production code • lib/screens/basic/home_screen.dart:1734:5 • avoid_print
+   info • Unnecessary braces in a string interpolation • lib/screens/basic/home_screen.dart:1734:27 • unnecessary_brace_in_string_interps
+   info • Don't invoke 'print' in production code • lib/screens/basic/home_screen.dart:1735:5 • avoid_print
+   info • Don't use 'BuildContext's across async gaps • lib/screens/basic/profile_screen.dart:125:26 • use_build_context_synchronously
+   info • Don't use 'BuildContext's across async gaps, guarded by an unrelated 'mounted' check • lib/screens/basic/profile_screen.dart:390:42 • use_build_context_synchronously
+   info • Don't use 'BuildContext's across async gaps, guarded by an unrelated 'mounted' check • lib/screens/basic/profile_screen.dart:798:23 • use_build_context_synchronously
+   info • Don't use 'BuildContext's across async gaps, guarded by an unrelated 'mounted' check • lib/screens/basic/profile_screen.dart:800:42 • use_build_context_synchronously
+   info • Don't use 'BuildContext's across async gaps, guarded by an unrelated 'mounted' check • lib/screens/basic/profile_screen.dart:811:40 • use_build_context_synchronously
+   info • Constructors for public widgets should have a named 'key' parameter • lib/screens/basic/splash_screen.dart:5:7 • use_key_in_widget_constructors
+   info • Invalid use of a private type in a public API • lib/screens/basic/splash_screen.dart:7:3 • library_private_types_in_public_api
+   info • Don't use 'BuildContext's across async gaps • lib/screens/basic/splash_screen.dart:31:38 • use_build_context_synchronously
+   info • The 'child' argument should be last in widget constructor invocations • lib/screens/basic/splash_screen.dart:63:21 • sort_child_properties_last
+   info • Don't use 'BuildContext's across async gaps • lib/screens/food_search_screen.dart:90:28 • use_build_context_synchronously
+   info • Don't use 'BuildContext's across async gaps, guarded by an unrelated 'mounted' check • lib/screens/food_search_screen.dart:336:49 • use_build_context_synchronously
+   info • Don't use 'BuildContext's across async gaps, guarded by an unrelated 'mounted' check • lib/screens/food_search_screen.dart:337:56 • use_build_context_synchronously
+   info • Don't use 'BuildContext's across async gaps, guarded by an unrelated 'mounted' check • lib/screens/food_search_screen.dart:350:56 • use_build_context_synchronously
+   info • Don't use 'BuildContext's across async gaps, guarded by an unrelated 'mounted' check • lib/screens/food_search_screen.dart:587:51 • use_build_context_synchronously
+   info • Don't use 'BuildContext's across async gaps, guarded by an unrelated 'mounted' check • lib/screens/food_search_screen.dart:589:51 • use_build_context_synchronously
+   info • Don't use 'BuildContext's across async gaps, guarded by an unrelated 'mounted' check • lib/screens/food_search_screen.dart:590:58 • use_build_context_synchronously
+   info • Unnecessary use of multiple underscores • lib/screens/food_search_screen.dart:645:24 • unnecessary_underscores
+   info • Don't invoke 'print' in production code • lib/screens/onboarding_screen.dart:510:5 • avoid_print
+   info • Don't invoke 'print' in production code • lib/screens/onboarding_screen.dart:536:9 • avoid_print
+   info • Don't invoke 'print' in production code • lib/screens/onboarding_screen.dart:541:5 • avoid_print
+   info • Don't invoke 'print' in production code • lib/screens/onboarding_screen.dart:550:5 • avoid_print
+   info • Don't invoke 'print' in production code • lib/screens/onboarding_screen.dart:556:9 • avoid_print
+   info • Don't invoke 'print' in production code • lib/screens/onboarding_screen.dart:560:9 • avoid_print
+   info • Don't invoke 'print' in production code • lib/screens/onboarding_screen.dart:565:9 • avoid_print
+   info • Don't invoke 'print' in production code • lib/screens/onboarding_screen.dart:581:5 • avoid_print
+   info • Don't invoke 'print' in production code • lib/screens/onboarding_screen.dart:582:5 • avoid_print
+   info • Don't invoke 'print' in production code • lib/screens/onboarding_screen.dart:583:5 • avoid_print
+   info • Don't invoke 'print' in production code • lib/screens/onboarding_screen.dart:584:5 • avoid_print
+   info • Don't invoke 'print' in production code • lib/screens/onboarding_screen.dart:585:5 • avoid_print
+   info • Don't invoke 'print' in production code • lib/screens/onboarding_screen.dart:586:5 • avoid_print
+   info • 'scale' is deprecated and shouldn't be used. Use scaleByVector3, scaleByVector4, or scaleByDouble instead • lib/screens/onboarding_screen.dart:915:40 • deprecated_member_use
+   info • 'Share' is deprecated and shouldn't be used. Use SharePlus instead • lib/screens/recipe_book_screen.dart:81:5 • deprecated_member_use
+   info • 'share' is deprecated and shouldn't be used. Use SharePlus.instance.share() instead • lib/screens/recipe_book_screen.dart:81:11 • deprecated_member_use
+   info • Don't use 'BuildContext's across async gaps, guarded by an unrelated 'mounted' check • lib/screens/settings/account_settings_screen.dart:140:42 • use_build_context_synchronously
+   info • Statements in an if should be enclosed in a block • lib/screens/settings/change_password_screen.dart:137:31 • curly_braces_in_flow_control_structures
+   info • Statements in an if should be enclosed in a block • lib/screens/settings/change_password_screen.dart:154:31 • curly_braces_in_flow_control_structures
+   info • Statements in an if should be enclosed in a block • lib/screens/settings/change_password_screen.dart:173:31 • curly_braces_in_flow_control_structures
+   info • 'activeColor' is deprecated and shouldn't be used. Use activeThumbColor instead. This feature was deprecated after v3.31.0-2.0.pre • lib/screens/settings/notifications_settings_screen.dart:152:13 • deprecated_member_use
+   info • The private field _selectedLanguage could be 'final' • lib/screens/settings/personalization_settings_screen.dart:16:10 • prefer_final_fields
+warning • The value of the field '_selectedLanguage' isn't used • lib/screens/settings/personalization_settings_screen.dart:16:10 • unused_field
+  error • The name '_selectedLanguage' is already defined • lib/screens/settings/personalization_settings_screen.dart:16:10 • duplicate_definition
+   info • 'value' is deprecated and shouldn't be used. Use component accessors like .r or .g, or toARGB32 for an explicit conversion • lib/screens/settings/personalization_settings_screen.dart:85:43 • deprecated_member_use
+   info • 'value' is deprecated and shouldn't be used. Use component accessors like .r or .g, or toARGB32 for an explicit conversion • lib/screens/settings/personalization_settings_screen.dart:85:65 • deprecated_member_use
+   info • 'activeColor' is deprecated and shouldn't be used. Use activeThumbColor instead. This feature was deprecated after v3.31.0-2.0.pre • lib/screens/settings/personalization_settings_screen.dart:273:13 • deprecated_member_use
+   info • 'groupValue' is deprecated and shouldn't be used. Use a RadioGroup ancestor to manage group value instead. This feature was deprecated after v3.32.0-0.0.pre • lib/screens/settings/personalization_settings_screen.dart:306:7 • deprecated_member_use
+   info • 'onChanged' is deprecated and shouldn't be used. Use RadioGroup to handle value change instead. This feature was deprecated after v3.32.0-0.0.pre • lib/screens/settings/personalization_settings_screen.dart:308:7 • deprecated_member_use
+   info • Use a 'SizedBox' to add whitespace to a layout • lib/screens/welcome_screen.dart:101:11 • sized_box_for_whitespace
+   info • Don't invoke 'print' in production code • lib/services/auth_service.dart:20:7 • avoid_print
+   info • Don't invoke 'print' in production code • lib/services/notification_service.dart:16:5 • avoid_print
+   info • Don't invoke 'print' in production code • lib/services/notification_service.dart:39:9 • avoid_print
+   info • Don't invoke 'print' in production code • lib/services/notification_service.dart:43:5 • avoid_print
+   info • Don't invoke 'print' in production code • lib/services/notification_service.dart:47:5 • avoid_print
+   info • Don't invoke 'print' in production code • lib/services/notification_service.dart:55:7 • avoid_print
+   info • Don't invoke 'print' in production code • lib/services/notification_service.dart:65:7 • avoid_print
+   info • Don't invoke 'print' in production code • lib/services/notification_service.dart:79:5 • avoid_print
+   info • Don't invoke 'print' in production code • lib/services/notification_service.dart:103:7 • avoid_print
+   info • Don't invoke 'print' in production code • lib/services/notification_service.dart:124:7 • avoid_print
+   info • 'value' is deprecated and shouldn't be used. Use component accessors like .r or .g, or toARGB32 for an explicit conversion • lib/services/theme_service.dart:48:53 • deprecated_member_use
+

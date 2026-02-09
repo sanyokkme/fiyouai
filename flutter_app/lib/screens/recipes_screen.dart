@@ -189,9 +189,9 @@ class _RecipesScreenState extends State<RecipesScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: AppColors.backgroundDark,
-      body: AppColors.buildBackgroundWithBlurSpots(
+    return Container(
+      color: AppColors.backgroundDark,
+      child: AppColors.buildBackgroundWithBlurSpots(
         child: SafeArea(
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -200,14 +200,6 @@ class _RecipesScreenState extends State<RecipesScreen> {
                 padding: const EdgeInsets.fromLTRB(25, 20, 25, 10),
                 child: Row(
                   children: [
-                    IconButton(
-                      icon: const Icon(
-                        Icons.arrow_back_ios,
-                        color: Colors.white,
-                        size: 20,
-                      ),
-                      onPressed: () => Navigator.pop(context),
-                    ),
                     const Text(
                       'AI Рецепти',
                       style: TextStyle(
@@ -387,7 +379,7 @@ class _RecipesScreenState extends State<RecipesScreen> {
         ),
         focusedBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(12),
-          borderSide: const BorderSide(color: AppColors.primaryColor),
+          borderSide: BorderSide(color: AppColors.primaryColor),
         ),
       ),
     );
@@ -447,11 +439,7 @@ class _RecipesScreenState extends State<RecipesScreen> {
       ),
       child: Row(
         children: [
-          const Icon(
-            Icons.timer_outlined,
-            color: AppColors.primaryColor,
-            size: 14,
-          ),
+          Icon(Icons.timer_outlined, color: AppColors.primaryColor, size: 14),
           const SizedBox(width: 4),
           Text(
             time,
@@ -512,9 +500,9 @@ class _RecipesScreenState extends State<RecipesScreen> {
       width: double.infinity,
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
-        color: Colors.white.withValues(alpha: 0.05),
+        color: AppColors.glassCardColor,
         borderRadius: BorderRadius.circular(28),
-        border: Border.all(color: Colors.white10),
+        border: Border.all(color: AppColors.glassCardColor),
       ),
       child: child,
     );
@@ -563,7 +551,7 @@ class _RecipesScreenState extends State<RecipesScreen> {
 
   Widget _buildEmptyState() {
     return _buildStyledCard(
-      child: const Center(
+      child: Center(
         child: Padding(
           padding: EdgeInsets.symmetric(vertical: 60),
           child: Column(

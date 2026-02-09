@@ -141,8 +141,8 @@ class _WelcomeScreenState extends State<WelcomeScreen>
                           ),
                         );
                       },
-                      child: const Padding(
-                        padding: EdgeInsets.symmetric(horizontal: 40),
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 40),
                         child: Text(
                           "Маленькі кроки ведуть до великих результатів",
                           textAlign: TextAlign.center,
@@ -372,8 +372,8 @@ class _WelcomeScreenState extends State<WelcomeScreen>
         child: Text(
           _titles[_currentIndex],
           key: ValueKey<int>(_currentIndex),
-          style: const TextStyle(
-            color: Colors.white,
+          style: TextStyle(
+            color: AppColors.textWhite,
             fontSize: 36,
             fontWeight: FontWeight.bold,
             height: 1.2,
@@ -419,9 +419,9 @@ class _WelcomeScreenState extends State<WelcomeScreen>
           );
         },
         child: RichText(
-          text: const TextSpan(
+          text: TextSpan(
             text: "Уже є аккаунт? ",
-            style: TextStyle(color: Colors.white70, fontSize: 16),
+            style: TextStyle(color: AppColors.textSecondary, fontSize: 16),
             children: [
               TextSpan(
                 text: "Увійти",

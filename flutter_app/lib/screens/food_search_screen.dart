@@ -93,6 +93,28 @@ class _FoodSearchScreenState extends State<FoodSearchScreen> {
       return false;
     }
 
+    // Retrieve arguments
+    final args =
+        ModalRoute.of(context)?.settings.arguments as Map<String, dynamic>?;
+    final String mealType = args?['mealType'] ?? 'snack';
+
+    int mealIndex = 0;
+    switch (mealType) {
+      case 'breakfast':
+        mealIndex = 0;
+        break;
+      case 'lunch':
+        mealIndex = 1;
+        break;
+      case 'dinner':
+        mealIndex = 2;
+        break;
+      case 'snack':
+      default:
+        mealIndex = 3;
+        break;
+    }
+
     double multiplier = weight / 100.0;
 
     final mealData = {
@@ -104,11 +126,12 @@ class _FoodSearchScreenState extends State<FoodSearchScreen> {
       ),
       "fat": double.parse((product['fat'] * multiplier).toStringAsFixed(1)),
       "carbs": double.parse((product['carbs'] * multiplier).toStringAsFixed(1)),
+      "meal_index": mealIndex,
       "created_at": DateTime.now().toIso8601String(),
     };
 
     try {
-      debugPrint("Sending data: $mealData"); // ДЛЯ ВІДЛАДКИ
+      debugPrint("Sending data: $mealData");
 
       final res = await http.post(
         Uri.parse('${AuthService.baseUrl}/add_manual_meal'),
@@ -120,9 +143,8 @@ class _FoodSearchScreenState extends State<FoodSearchScreen> {
       debugPrint("Response body: ${res.body}");
 
       if (res.statusCode == 200) {
-        return true; // Успіх
+        return true;
       } else {
-        // Показуємо помилку з сервера
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
@@ -195,7 +217,7 @@ class _FoodSearchScreenState extends State<FoodSearchScreen> {
         decoration: BoxDecoration(
           color: AppColors.backgroundDark,
           borderRadius: const BorderRadius.vertical(top: Radius.circular(25)),
-          border: Border.all(color: Colors.white10),
+          border: Border.all(color: AppColors.textWhite.withValues(alpha: 0.1)),
         ),
         child: StatefulBuilder(
           builder: (context, setModalState) {
@@ -224,7 +246,10 @@ class _FoodSearchScreenState extends State<FoodSearchScreen> {
                         ),
                         IconButton(
                           onPressed: () => Navigator.pop(ctx),
-                          icon: const Icon(Icons.close, color: Colors.white54),
+                          icon: Icon(
+                            Icons.close,
+                            color: AppColors.textSecondary,
+                          ),
                         ),
                       ],
                     ),
@@ -406,8 +431,8 @@ class _FoodSearchScreenState extends State<FoodSearchScreen> {
       children: [
         Text(
           label,
-          style: const TextStyle(
-            color: Colors.white70,
+          style: TextStyle(
+            color: AppColors.textSecondary,
             fontSize: 13,
             fontWeight: FontWeight.w500,
           ),
@@ -416,26 +441,27 @@ class _FoodSearchScreenState extends State<FoodSearchScreen> {
         TextField(
           controller: controller,
           keyboardType: keyboardType,
-          style: const TextStyle(color: Colors.white, fontSize: 16),
+          style: TextStyle(color: AppColors.textWhite, fontSize: 16),
           decoration: InputDecoration(
             hintText: hint,
-            hintStyle: const TextStyle(color: Colors.white38),
+            hintStyle: TextStyle(color: AppColors.textSecondary),
             filled: true,
-            fillColor: Colors.white.withValues(alpha: 0.05),
+            fillColor: AppColors.cardColor,
             border: OutlineInputBorder(
               borderRadius: BorderRadius.circular(12),
-              borderSide: const BorderSide(color: Colors.white10),
+              borderSide: BorderSide(
+                color: AppColors.textWhite.withValues(alpha: 0.1),
+              ),
             ),
             enabledBorder: OutlineInputBorder(
               borderRadius: BorderRadius.circular(12),
-              borderSide: const BorderSide(color: Colors.white10),
+              borderSide: BorderSide(
+                color: AppColors.textWhite.withValues(alpha: 0.1),
+              ),
             ),
             focusedBorder: OutlineInputBorder(
               borderRadius: BorderRadius.circular(12),
-              borderSide: const BorderSide(
-                color: AppColors.primaryColor,
-                width: 1.5,
-              ),
+              borderSide: BorderSide(color: AppColors.primaryColor, width: 1.5),
             ),
             contentPadding: const EdgeInsets.symmetric(
               horizontal: 15,
@@ -461,7 +487,7 @@ class _FoodSearchScreenState extends State<FoodSearchScreen> {
         decoration: BoxDecoration(
           color: AppColors.backgroundDark,
           borderRadius: const BorderRadius.vertical(top: Radius.circular(25)),
-          border: Border.all(color: Colors.white10),
+          border: Border.all(color: AppColors.textWhite.withValues(alpha: 0.1)),
         ),
         child: StatefulBuilder(
           // Додаємо це, щоб оновлювати кнопку
@@ -483,11 +509,6 @@ class _FoodSearchScreenState extends State<FoodSearchScreen> {
                       Expanded(
                         child: Text(
                           product['name'],
-                          style: const TextStyle(
-                            color: Colors.white,
-                            fontSize: 22,
-                            fontWeight: FontWeight.bold,
-                          ),
                           overflow: TextOverflow.ellipsis,
                         ),
                       ),
@@ -502,7 +523,7 @@ class _FoodSearchScreenState extends State<FoodSearchScreen> {
                         ),
                         child: Text(
                           "${product['calories']} ккал / 100г",
-                          style: const TextStyle(
+                          style: TextStyle(
                             color: AppColors.primaryColor,
                             fontWeight: FontWeight.bold,
                             fontSize: 12,
@@ -512,36 +533,36 @@ class _FoodSearchScreenState extends State<FoodSearchScreen> {
                     ],
                   ),
                   const SizedBox(height: 20),
-                  const Text(
+                  Text(
                     "Вкажіть вагу (грами):",
-                    style: TextStyle(color: Colors.white54),
+                    style: TextStyle(color: AppColors.textSecondary),
                   ),
                   const SizedBox(height: 10),
                   TextField(
                     controller: weightController,
                     keyboardType: TextInputType.number,
                     autofocus: true,
-                    style: const TextStyle(
-                      color: Colors.white,
-                      fontSize: 24,
-                      fontWeight: FontWeight.bold,
-                    ),
+                    style: const TextStyle(fontWeight: FontWeight.bold),
                     decoration: InputDecoration(
                       suffixText: "г",
-                      suffixStyle: const TextStyle(color: Colors.white54),
+                      suffixStyle: TextStyle(color: AppColors.textSecondary),
                       filled: true,
-                      fillColor: Colors.white.withValues(alpha: 0.05),
+                      fillColor: AppColors.cardColor,
                       border: OutlineInputBorder(
                         borderRadius: BorderRadius.circular(15),
-                        borderSide: const BorderSide(color: Colors.white10),
+                        borderSide: BorderSide(
+                          color: AppColors.textWhite.withValues(alpha: 0.1),
+                        ),
                       ),
                       enabledBorder: OutlineInputBorder(
                         borderRadius: BorderRadius.circular(15),
-                        borderSide: const BorderSide(color: Colors.white10),
+                        borderSide: BorderSide(
+                          color: AppColors.textWhite.withValues(alpha: 0.1),
+                        ),
                       ),
                       focusedBorder: OutlineInputBorder(
                         borderRadius: BorderRadius.circular(15),
-                        borderSide: const BorderSide(
+                        borderSide: BorderSide(
                           color: AppColors.primaryColor,
                           width: 1.5,
                         ),
@@ -557,9 +578,9 @@ class _FoodSearchScreenState extends State<FoodSearchScreen> {
                           style: TextButton.styleFrom(
                             padding: const EdgeInsets.symmetric(vertical: 15),
                           ),
-                          child: const Text(
+                          child: Text(
                             "Скасувати",
-                            style: TextStyle(color: Colors.white54),
+                            style: TextStyle(color: AppColors.textSecondary),
                           ),
                         ),
                       ),
@@ -648,12 +669,12 @@ class _FoodSearchScreenState extends State<FoodSearchScreen> {
       itemBuilder: (_, __) => Padding(
         padding: const EdgeInsets.only(bottom: 12),
         child: Shimmer.fromColors(
-          baseColor: Colors.white.withValues(alpha: 0.05),
-          highlightColor: Colors.white.withValues(alpha: 0.1),
+          baseColor: AppColors.cardColor,
+          highlightColor: AppColors.textGrey.withValues(alpha: 0.3),
           child: Container(
             height: 70,
             decoration: BoxDecoration(
-              color: Colors.black,
+              color: AppColors.cardColor,
               borderRadius: BorderRadius.circular(15),
             ),
           ),
@@ -670,12 +691,14 @@ class _FoodSearchScreenState extends State<FoodSearchScreen> {
           Icon(
             Icons.search,
             size: 80,
-            color: Colors.white.withValues(alpha: 0.1),
+            color: AppColors.textSecondary.withValues(alpha: 0.1),
           ),
           const SizedBox(height: 15),
           Text(
             "Введіть назву продукту",
-            style: TextStyle(color: Colors.white.withValues(alpha: 0.3)),
+            style: TextStyle(
+              color: AppColors.textSecondary.withValues(alpha: 0.3),
+            ),
           ),
         ],
       ),
@@ -689,7 +712,7 @@ class _FoodSearchScreenState extends State<FoodSearchScreen> {
     return Container(
       margin: const EdgeInsets.only(bottom: 10),
       decoration: BoxDecoration(
-        color: Colors.white.withValues(alpha: 0.05),
+        color: AppColors.cardColor,
         borderRadius: BorderRadius.circular(16),
         border: Border.all(
           // Локальні продукти підсвічуємо ледь помітним зеленим, глобальні - прозорим
@@ -738,8 +761,8 @@ class _FoodSearchScreenState extends State<FoodSearchScreen> {
                     children: [
                       Text(
                         item['name'],
-                        style: const TextStyle(
-                          color: Colors.white,
+                        style: TextStyle(
+                          color: AppColors.textWhite,
                           fontWeight: FontWeight.bold,
                           fontSize: 16,
                         ),
@@ -770,8 +793,8 @@ class _FoodSearchScreenState extends State<FoodSearchScreen> {
 
                           Text(
                             "${item['calories']} ккал",
-                            style: const TextStyle(
-                              color: Colors.white70,
+                            style: TextStyle(
+                              color: AppColors.textSecondary,
                               fontSize: 12,
                               fontWeight: FontWeight.bold,
                             ),
@@ -780,7 +803,9 @@ class _FoodSearchScreenState extends State<FoodSearchScreen> {
                           Text(
                             "Б:${item['protein']} Ж:${item['fat']} В:${item['carbs']}",
                             style: TextStyle(
-                              color: Colors.white.withValues(alpha: 0.4),
+                              color: AppColors.textSecondary.withValues(
+                                alpha: 0.5,
+                              ),
                               fontSize: 11,
                             ),
                           ),
@@ -793,11 +818,11 @@ class _FoodSearchScreenState extends State<FoodSearchScreen> {
                 // Кнопка "+"
                 Container(
                   decoration: BoxDecoration(
-                    color: Colors.white.withValues(alpha: 0.1),
+                    color: AppColors.cardColor,
                     borderRadius: BorderRadius.circular(10),
                   ),
                   child: IconButton(
-                    icon: const Icon(Icons.add, color: AppColors.primaryColor),
+                    icon: Icon(Icons.add, color: AppColors.primaryColor),
                     onPressed: () => _showWeightDialog(item),
                     constraints: const BoxConstraints(),
                     padding: const EdgeInsets.all(8),
@@ -874,9 +899,10 @@ class _FoodSearchScreenState extends State<FoodSearchScreen> {
             ),
 
             // "Не знайшли продукту?" link - показується коли результатів не знайдено
-            if (_searchResults.isEmpty || _searchResults.isNotEmpty &&
-                !_isLoading &&
-                _searchController.text.isNotEmpty)
+            if (_searchResults.isEmpty ||
+                _searchResults.isNotEmpty &&
+                    !_isLoading &&
+                    _searchController.text.isNotEmpty)
               Padding(
                 padding: const EdgeInsets.symmetric(
                   horizontal: 16,
@@ -885,12 +911,12 @@ class _FoodSearchScreenState extends State<FoodSearchScreen> {
                 child: Center(
                   child: TextButton.icon(
                     onPressed: _showAddCustomProductDialog,
-                    icon: const Icon(
+                    icon: Icon(
                       Icons.add_circle_outline,
                       color: AppColors.primaryColor,
                       size: 18,
                     ),
-                    label: const Text(
+                    label: Text(
                       'Не знайшли продукту?',
                       style: TextStyle(
                         color: AppColors.primaryColor,

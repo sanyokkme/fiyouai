@@ -117,7 +117,7 @@ class _StoryViewScreenState extends State<StoryViewScreen>
                       fit: BoxFit.cover,
                       loadingBuilder: (_, child, progress) {
                         if (progress == null) return child;
-                        return const Center(
+                        return Center(
                           child: CircularProgressIndicator(
                             color: AppColors.primaryColor,
                           ),

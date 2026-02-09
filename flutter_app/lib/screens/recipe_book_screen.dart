@@ -103,7 +103,7 @@ class _RecipeBookScreenState extends State<RecipeBookScreen> {
         if (mounted) {
           Navigator.pop(context);
           ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
+            SnackBar(
               content: Text(
                 "Смачного! Дані оновлено 🥗",
                 style: TextStyle(
@@ -136,19 +136,19 @@ class _RecipeBookScreenState extends State<RecipeBookScreen> {
                 child: Row(
                   children: [
                     IconButton(
-                      icon: const Icon(
+                      icon: Icon(
                         Icons.arrow_back_ios,
-                        color: Colors.white,
+                        color: AppColors.textWhite,
                         size: 20,
                       ),
                       onPressed: () => Navigator.pop(context),
                     ),
-                    const Text(
+                    Text(
                       'Мої рецепти',
                       style: TextStyle(
                         fontSize: 32,
                         fontWeight: FontWeight.bold,
-                        color: Colors.white,
+                        color: AppColors.textWhite,
                       ),
                     ),
                   ],
@@ -156,7 +156,7 @@ class _RecipeBookScreenState extends State<RecipeBookScreen> {
               ),
               Expanded(
                 child: _isLoading
-                    ? const Center(
+                    ? Center(
                         child: CircularProgressIndicator(
                           color: AppColors.primaryColor,
                         ),
@@ -206,9 +206,9 @@ class _RecipeBookScreenState extends State<RecipeBookScreen> {
     return Container(
       margin: const EdgeInsets.symmetric(vertical: 8),
       decoration: BoxDecoration(
-        color: Colors.white.withValues(alpha: 0.05),
+        color: AppColors.glassCardColor,
         borderRadius: BorderRadius.circular(24),
-        border: Border.all(color: Colors.white10),
+        border: Border.all(color: AppColors.glassCardColor),
       ),
       child: ListTile(
         contentPadding: const EdgeInsets.symmetric(
@@ -229,8 +229,8 @@ class _RecipeBookScreenState extends State<RecipeBookScreen> {
         ),
         title: Text(
           recipe['recipe_name'] ?? recipe['title'] ?? "Без назви",
-          style: const TextStyle(
-            color: Colors.white,
+          style: TextStyle(
+            color: AppColors.textWhite,
             fontWeight: FontWeight.bold,
             fontSize: 18,
           ),
@@ -239,13 +239,13 @@ class _RecipeBookScreenState extends State<RecipeBookScreen> {
           padding: const EdgeInsets.only(top: 5),
           child: Text(
             "${recipe['calories']} ккал • ${recipe['time'] ?? '20 хв'}",
-            style: const TextStyle(color: Colors.white38),
+            style: TextStyle(color: AppColors.textSecondary),
           ),
         ),
-        trailing: const Icon(
+        trailing: Icon(
           Icons.arrow_forward_ios,
           size: 14,
-          color: Colors.white24,
+          color: AppColors.textSecondary.withValues(alpha: 0.5),
         ),
         onTap: () => _showDetails(recipe),
       ),
@@ -257,10 +257,10 @@ class _RecipeBookScreenState extends State<RecipeBookScreen> {
       width: 50,
       height: 50,
       decoration: BoxDecoration(
-        color: Colors.white10,
+        color: AppColors.cardColor,
         borderRadius: BorderRadius.circular(12),
       ),
-      child: const Icon(
+      child: Icon(
         Icons.restaurant_menu,
         color: AppColors.primaryColor,
         size: 20,
@@ -276,12 +276,12 @@ class _RecipeBookScreenState extends State<RecipeBookScreen> {
           Icon(
             Icons.menu_book,
             size: 80,
-            color: Colors.white.withValues(alpha: 0.05),
+            color: AppColors.textSecondary.withValues(alpha: 0.2),
           ),
           const SizedBox(height: 20),
-          const Text(
+          Text(
             "Ваша книга порожня",
-            style: TextStyle(color: Colors.white38, fontSize: 18),
+            style: TextStyle(color: AppColors.textSecondary, fontSize: 18),
           ),
         ],
       ),
@@ -295,8 +295,8 @@ class _RecipeBookScreenState extends State<RecipeBookScreen> {
       isScrollControlled: true,
       builder: (context) => Container(
         height: MediaQuery.of(context).size.height * 0.85,
-        decoration: const BoxDecoration(
-          color: Color(0xFF1A1A1A),
+        decoration: BoxDecoration(
+          color: AppColors.backgroundDark,
           borderRadius: BorderRadius.vertical(top: Radius.circular(35)),
         ),
         child: Stack(
@@ -311,7 +311,7 @@ class _RecipeBookScreenState extends State<RecipeBookScreen> {
                       width: 40,
                       height: 4,
                       decoration: BoxDecoration(
-                        color: Colors.white10,
+                        color: AppColors.textSecondary.withValues(alpha: 0.2),
                         borderRadius: BorderRadius.circular(2),
                       ),
                     ),
@@ -334,15 +334,15 @@ class _RecipeBookScreenState extends State<RecipeBookScreen> {
                       Expanded(
                         child: Text(
                           recipe['recipe_name'] ?? recipe['title'] ?? "Рецепт",
-                          style: const TextStyle(
-                            color: Colors.white,
+                          style: TextStyle(
+                            color: AppColors.textWhite,
                             fontSize: 26,
                             fontWeight: FontWeight.bold,
                           ),
                         ),
                       ),
                       IconButton(
-                        icon: const Icon(
+                        icon: Icon(
                           Icons.share_outlined,
                           color: AppColors.primaryColor,
                         ),
@@ -352,11 +352,11 @@ class _RecipeBookScreenState extends State<RecipeBookScreen> {
                   ),
                   const SizedBox(height: 20),
                   _buildMacroRow(recipe),
-                  const Divider(color: Colors.white10, height: 40),
-                  const Text(
+                  Divider(color: AppColors.cardColor, height: 40),
+                  Text(
                     "📦 Інгредієнти",
                     style: TextStyle(
-                      color: Colors.white,
+                      color: AppColors.textWhite,
                       fontSize: 20,
                       fontWeight: FontWeight.bold,
                     ),
@@ -364,17 +364,17 @@ class _RecipeBookScreenState extends State<RecipeBookScreen> {
                   const SizedBox(height: 15),
                   Text(
                     _formatData(recipe['ingredients']),
-                    style: const TextStyle(
-                      color: Colors.white70,
+                    style: TextStyle(
+                      color: AppColors.textSecondary,
                       fontSize: 16,
                       height: 1.6,
                     ),
                   ),
                   const SizedBox(height: 30),
-                  const Text(
-                    "👨‍🍳 Спосіб приготування",
+                  Text(
+                    "👨🍳 Спосіб приготування",
                     style: TextStyle(
-                      color: Colors.white,
+                      color: AppColors.textWhite,
                       fontSize: 20,
                       fontWeight: FontWeight.bold,
                     ),
@@ -382,8 +382,8 @@ class _RecipeBookScreenState extends State<RecipeBookScreen> {
                   const SizedBox(height: 15),
                   Text(
                     _formatData(recipe['instructions']),
-                    style: const TextStyle(
-                      color: Colors.white70,
+                    style: TextStyle(
+                      color: AppColors.textSecondary,
                       fontSize: 16,
                       height: 1.6,
                     ),

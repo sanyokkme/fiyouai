@@ -33,7 +33,10 @@ async def register(data: RegisterSchema, service: NutritionService = Depends(get
             "age": int(age),
             "gender": data.profile.gender,
             "goal": data.profile.goal,
-            "activity_level": data.profile.activity,   # ✅ ваш новий рядок
+            "activity_level": data.profile.activity_level,
+            "target_weight": data.profile.target_weight,
+            "weekly_change_goal": data.profile.weekly_change_goal,
+            "estimated_end_date": data.profile.estimated_end_date,
             "created_at": get_now_poland().isoformat()
         }
         service.user_repo.create_profile(db_profile)

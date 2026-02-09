@@ -115,7 +115,7 @@ class _CameraScreenState extends State<CameraScreen> {
   @override
   Widget build(BuildContext context) {
     if (_controller == null || !_controller!.value.isInitialized) {
-      return const Scaffold(
+      return Scaffold(
         backgroundColor: Colors.black,
         body: Center(
           child: CircularProgressIndicator(color: AppColors.primaryColor),
@@ -250,7 +250,7 @@ class _LoadingOverlayState extends State<_LoadingOverlay> {
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              const CircularProgressIndicator(
+              CircularProgressIndicator(
                 color: AppColors.primaryColor,
                 strokeWidth: 6,
               ),
@@ -377,7 +377,7 @@ class _AnalysisResultSheet extends StatelessWidget {
           const SizedBox(height: 40),
           Text(
             "$calories ккал",
-            style: const TextStyle(
+            style: TextStyle(
               fontSize: 42,
               fontWeight: FontWeight.bold,
               color: AppColors.primaryColor,
