@@ -38,7 +38,8 @@ async def register(data: RegisterSchema, service: NutritionService = Depends(get
             "weekly_change_goal": data.profile.weekly_change_goal,
             "estimated_end_date": data.profile.estimated_end_date,
             "body_fat": data.profile.body_fat,
-            "created_at": get_now_poland().isoformat()
+            "created_at": get_now_poland().isoformat(),
+            "account_type": "free" # 🆕 Default account type
         }
         service.user_repo.create_profile(db_profile)
         

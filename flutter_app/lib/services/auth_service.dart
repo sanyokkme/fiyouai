@@ -39,6 +39,8 @@ class AuthService {
     if (refreshToken != null) {
       await prefs.setString('refresh_token', refreshToken);
     }
+    // Store last login timestamp
+    await prefs.setString('last_login', DateTime.now().toIso8601String());
   }
 
   static Future<String?> getStoredUserId() async {
