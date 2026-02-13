@@ -28,6 +28,11 @@ class DataManager {
         '/analytics/$userId',
         'cached_analytics_history_$userId',
       ),
+      _fetchAndCache(
+        userId,
+        '/weight/history/$userId',
+        'cached_weight_history_$userId',
+      ),
       _manageTipsLogic(userId), // Розумна логіка порад
     ]);
 
@@ -41,12 +46,39 @@ class DataManager {
     String cacheKey,
   ) async {
     try {
+      final token = await AuthService.getAccessToken();
+      final headers = token != null ? {'Authorization': 'Bearer $token'} : null;
+
       final res = await http.get(
         Uri.parse('${AuthService.baseUrl}$endpoint'),
+        headers: headers,
       );
+
       if (res.statusCode == 200) {
         final prefs = await SharedPreferences.getInstance();
         await prefs.setString(cacheKey, res.body);
+      } else if (res.statusCode == 401) {
+        debugPrint("🔄 Token expired for $endpoint. Attempting refresh...");
+        final success = await AuthService.refreshSession();
+        if (success) {
+          final newToken = await AuthService.getAccessToken();
+          final newHeaders = {'Authorization': 'Bearer $newToken'};
+          final retryRes = await http.get(
+            Uri.parse('${AuthService.baseUrl}$endpoint'),
+            headers: newHeaders,
+          );
+          if (retryRes.statusCode == 200) {
+            final prefs = await SharedPreferences.getInstance();
+            await prefs.setString(cacheKey, retryRes.body);
+            debugPrint("✅ Refresh successful for $endpoint");
+          }
+        } else {
+          debugPrint("❌ Refresh failed for $endpoint");
+        }
+      } else {
+        debugPrint(
+          "⚠️ DataManager Backend Error ($endpoint): Status ${res.statusCode}",
+        );
       }
     } catch (e) {
       debugPrint("⚠️ DataManager Error ($endpoint): $e");
@@ -68,8 +100,14 @@ class DataManager {
       debugPrint("🤖 AI: Генерую нові поради, бо старі прочитані...");
 
       try {
+        final token = await AuthService.getAccessToken();
+        final headers = token != null
+            ? {'Authorization': 'Bearer $token'}
+            : null;
+
         final res = await http.get(
           Uri.parse('${AuthService.baseUrl}/get_tips/$userId'),
+          headers: headers,
         );
 
         if (res.statusCode == 200) {
@@ -78,6 +116,22 @@ class DataManager {
           // Скидаємо прапорець перегляду (тепер у нас є нові, непрочитані)
           await prefs.setBool(keyTipsViewed, false);
           debugPrint("🤖 AI: Нові поради готові!");
+        } else if (res.statusCode == 401) {
+          debugPrint("🔄 Token expired for Tips. Attempting refresh...");
+          final success = await AuthService.refreshSession();
+          if (success) {
+            final newToken = await AuthService.getAccessToken();
+            final newHeaders = {'Authorization': 'Bearer $newToken'};
+            final retryRes = await http.get(
+              Uri.parse('${AuthService.baseUrl}/get_tips/$userId'),
+              headers: newHeaders,
+            );
+            if (retryRes.statusCode == 200) {
+              await prefs.setString('${keyTips}_$userId', retryRes.body);
+              await prefs.setBool(keyTipsViewed, false);
+              debugPrint("✅ AI: Нові поради готові (після рефрешу)!");
+            }
+          }
         }
       } catch (e) {
         debugPrint("AI Error: $e");
@@ -92,5 +146,11 @@ class DataManager {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setBool(keyTipsViewed, true);
     debugPrint("👀 User: Поради переглянуто. Наступного разу згенеруємо нові.");
+  }
+
+  // --- ВАГА ---
+  Future<String?> getCachedWeightHistory(String userId) async {
+    final prefs = await SharedPreferences.getInstance();
+    return prefs.getString('cached_weight_history_$userId');
   }
 }

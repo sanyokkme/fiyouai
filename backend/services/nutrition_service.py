@@ -2,6 +2,9 @@ from repositories.meal_repo import MealRepository
 from repositories.user_repo import UserRepository
 from utils import clean_to_int, clean_to_float, get_now_poland
 from datetime import timedelta
+from rich.console import Console
+
+console = Console()
 
 class NutritionService:
     def __init__(self, meal_repo: MealRepository, user_repo: UserRepository):
@@ -47,15 +50,21 @@ class NutritionService:
 
     def get_daily_status(self, user_id: str):
         """Отримує повну статистику за сьогодні."""
+        console.print(f"[bold cyan]STATUS[/] -> Fetching daily summary for: [white]{user_id}[/]")
+        
         today = get_now_poland().replace(hour=0, minute=0, second=0, microsecond=0).isoformat()
         
         prof_response = self.user_repo.get_profile(user_id)
         prof = prof_response.data if prof_response else None
         
-        if not prof: return {"error": "Profile not found"}
+        if not prof: 
+            console.print(f"   ┗━ [red]Profile not found![/]")
+            return {"error": "Profile not found"}
 
         meals = self.meal_repo.get_meals_from_date(user_id, today).data or []
         water = self.meal_repo.get_water_logs(user_id, today).data or []
+        
+        console.print(f"   ┗━ [dim]Meals today:[/dim] {len(meals)} | [dim]Water logs:[/dim] {len(water)}")
 
         target = max(1200, int(prof.get("daily_calories_target", 2000)))
         eaten = sum(clean_to_int(m.get('calories', 0)) for m in meals)
@@ -64,10 +73,12 @@ class NutritionService:
             stories_response = self.meal_repo.get_stories()
             stories = stories_response.data if stories_response.data else []
         except Exception as e:
-            print(f"Error fetching stories: {e}")
+            console.print(f"   ┗━ [red]Error fetching stories: {e}[/]")
             stories = []
         
         macros = self.calculate_macros(target)
+        
+        console.print(f"   ┗━ [green]Success[/] -> Eaten: {eaten}/{target} kcal")
 
         return {
             "user_id": user_id,
@@ -83,6 +94,7 @@ class NutritionService:
             "water": sum(w['amount'] for w in water), 
             "water_target": int(prof.get("weight", 70) * 35),
             "stories": stories,
+            "weight": prof.get("weight"),
             "avatar_url": prof.get("avatar_url"),
             "target_p": macros["protein"], 
             "target_f": macros["fat"], 
@@ -93,24 +105,25 @@ class NutritionService:
         """Повертає статистику всіх метрик за останні 7 днів."""
         week_ago = (get_now_poland().replace(hour=0, minute=0, second=0, microsecond=0) - timedelta(days=7)).isoformat()
         
-        # Отримуємо страви та воду за тиждень
-        print(f"DEBUG: Fetching analytics for user: {user_id}")
-        print(f"DEBUG: Date from (week_ago): {week_ago}")
+        console.print(f"[bold cyan]ANALYTICS[/] -> Fetching for user: [white]{user_id}[/]")
+        console.print(f"   ┗━ [dim]Date range start:[/dim] {week_ago}")
         
         meals_res = self.meal_repo.get_meals_from_date(user_id, week_ago)
         water_res = self.meal_repo.get_water_logs(user_id, week_ago)
         
         if meals_res.data:
-            print(f"DEBUG: Found {len(meals_res.data)} meals")
+            console.print(f"   ┗━ [green]Found {len(meals_res.data)} meals[/]")
         else:
-            print(f"DEBUG: NO MEALS FOUND via query: user_id={user_id}, created_at >= {week_ago}")
+            console.print(f"   ┗━ [yellow]NO MEALS FOUND[/] via query")
+            console.print(f"      [dim]Query: user_id={user_id}, created_at >= {week_ago}[/]")
             
             # --- DEBUG CHECK: Check if ANY meals exist for this user ---
             try:
                 all_meals = self.meal_repo.supabase.table("meal_history").select("count").eq("user_id", user_id).execute()
-                print(f"DEBUG: Total meals for this user (all time): {all_meals.data}")
+                count = all_meals.data[0]['count'] if all_meals.data else 0
+                console.print(f"      [dim]Total meals (all time): {count}[/]")
             except Exception as e:
-                print(f"DEBUG: Check failed: {e}")
+                console.print(f"      [red]Check failed: {e}[/]")
             # -----------------------------------------------------------
 
         meals_data = meals_res.data or []
@@ -171,9 +184,13 @@ class NutritionService:
         
     def get_data_for_tips(self, user_id: str):
         """Збирає дані (історія + профіль) для генерації порад."""
+        console.print(f"[bold cyan]AI TIPS[/] -> Fetching context for: [white]{user_id}[/]")
+        
         week_ago = (get_now_poland().replace(hour=0, minute=0, second=0, microsecond=0) - timedelta(days=7)).isoformat()
         
         history = self.meal_repo.get_meals_from_date(user_id, week_ago).data or []
         profile = self.user_repo.get_profile(user_id).data or {}
+        
+        console.print(f"   ┗━ [green]Found[/] {len(history)} recent meals")
         
         return history, profile

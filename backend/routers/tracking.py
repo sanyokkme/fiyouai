@@ -15,17 +15,20 @@ router = APIRouter(tags=["Tracking"])
 
 @router.get("/user_status/{user_id}")
 async def get_user_status(user_id: str, service: NutritionService = Depends(get_nutrition_service)):
+    user_id = user_id.strip()
     if is_invalid_user(user_id):
         return {"eaten": 0, "target": 2000, "remaining": 0, "goal": "maintain"}
     return service.get_daily_status(user_id)
 
 @router.get("/analytics/{user_id}")
 async def get_analytics(user_id: str, service: NutritionService = Depends(get_nutrition_service)):
+    user_id = user_id.strip()
     if is_invalid_user(user_id): return []
     return service.get_weekly_analytics(user_id)
 
 @router.post("/add_water")
 async def add_water(data: WaterLogSchema, service: NutritionService = Depends(get_nutrition_service)):
+    data.user_id = data.user_id.strip()
     if is_invalid_user(data.user_id): raise HTTPException(status_code=400, detail="Invalid User")
     entry = {"user_id": data.user_id, "amount": data.amount, "created_at": data.created_at or get_now_poland().isoformat()}
     service.meal_repo.add_water(entry)

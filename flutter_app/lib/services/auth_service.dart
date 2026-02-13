@@ -7,7 +7,7 @@ class AuthService {
   // 1. Зробили змінну статичною, щоб мати до неї доступ з інших файлів
   static const String _prodUrl = 'https://fiyouai.onrender.com';
 
-  static const String _devUrl = 'http://172.20.10.2:8000';
+  static const String _devUrl = 'http://172.20.10.3:8000';
 
   // 3. Розумний геттер
   static String get baseUrl {
@@ -23,22 +23,76 @@ class AuthService {
   }
 
   // Збереження даних сесії локально
-  Future<void> _saveSession(String userId, String? token) async {
+  Future<void> _saveSession(
+    String userId,
+    String? token,
+    String? refreshToken,
+  ) async {
     final prefs = await SharedPreferences.getInstance();
-    await prefs.setString('user_id', userId);
+    await prefs.setString(
+      'user_id',
+      userId.replaceAll(RegExp(r'[^a-fA-F0-9-]'), ''),
+    );
     if (token != null) {
       await prefs.setString('access_token', token);
+    }
+    if (refreshToken != null) {
+      await prefs.setString('refresh_token', refreshToken);
     }
   }
 
   static Future<String?> getStoredUserId() async {
     final prefs = await SharedPreferences.getInstance();
-    return prefs.getString('user_id');
+    final rawId = prefs.getString('user_id');
+    if (rawId == null) return null;
+    // Remove all characters except hex and dashes
+    final cleanId = rawId.replaceAll(RegExp(r'[^a-fA-F0-9-]'), '');
+    if (rawId != cleanId) {
+      debugPrint("AuthService: Cleaned UserID from '$rawId' to '$cleanId'");
+      // Auto-healed the stored value
+      await prefs.setString('user_id', cleanId);
+    }
+    return cleanId;
   }
 
   static Future<String?> getAccessToken() async {
     final prefs = await SharedPreferences.getInstance();
     return prefs.getString('access_token');
+  }
+
+  static Future<String?> getRefreshToken() async {
+    final prefs = await SharedPreferences.getInstance();
+    return prefs.getString('refresh_token');
+  }
+
+  // ОНОВЛЕННЯ ТОКЕНА
+  static Future<bool> refreshSession() async {
+    try {
+      final refreshToken = await getRefreshToken();
+      if (refreshToken == null) return false;
+
+      final res = await http.post(
+        Uri.parse('$baseUrl/auth/refresh'),
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode({'refresh_token': refreshToken}),
+      );
+
+      if (res.statusCode == 200) {
+        final data = jsonDecode(res.body);
+        final prefs = await SharedPreferences.getInstance();
+        if (data['access_token'] != null) {
+          await prefs.setString('access_token', data['access_token']);
+        }
+        if (data['refresh_token'] != null) {
+          await prefs.setString('refresh_token', data['refresh_token']);
+        }
+        return true;
+      }
+      return false;
+    } catch (e) {
+      debugPrint("Token Refresh Error: $e");
+      return false;
+    }
   }
 
   // РЕЄСТРАЦІЯ
@@ -63,7 +117,11 @@ class AuthService {
 
     if (response.statusCode == 200) {
       if (data['user_id'] != null) {
-        await _saveSession(data['user_id'], data['access_token']);
+        await _saveSession(
+          data['user_id'],
+          data['access_token'],
+          data['refresh_token'],
+        );
       }
       return data;
     } else {
@@ -121,14 +179,18 @@ class AuthService {
 
     if (res.statusCode == 200) {
       final data = jsonDecode(res.body);
-      await _saveSession(data['user_id'], data['access_token']);
+      await _saveSession(
+        data['user_id'],
+        data['access_token'],
+        data['refresh_token'],
+      );
     } else {
       throw Exception(jsonDecode(res.body)['detail'] ?? 'Помилка входу');
     }
   }
 
   // ВИДАЛЕННЯ АКАУНТУ
-  Future<void> deleteAccount(String userId) async {
+  static Future<void> deleteAccount(String userId) async {
     final response = await http.delete(
       Uri.parse('$baseUrl/profile/delete?user_id=$userId'),
       headers: {'Content-Type': 'application/json'},
@@ -140,11 +202,31 @@ class AuthService {
     }
 
     // Після успішного видалення на бекенді, очищаємо дані локально
-    await logout();
+    await AuthService.logout();
+  }
+
+  // ОНОВЛЕННЯ ПРОФІЛЮ
+  static Future<void> updateProfile(String field, dynamic value) async {
+    final userId = await getStoredUserId();
+    final token = await getAccessToken();
+    if (userId == null || token == null) return;
+
+    final response = await http.post(
+      Uri.parse('$baseUrl/profile/update'),
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': 'Bearer $token',
+      },
+      body: jsonEncode({"user_id": userId, "field": field, "value": value}),
+    );
+
+    if (response.statusCode != 200) {
+      throw Exception("Не вдалося оновити профіль: ${response.body}");
+    }
   }
 
   // ВИХІД
-  Future<void> logout() async {
+  static Future<void> logout() async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.clear();
   }

@@ -17,7 +17,6 @@ class ProfileScreen extends StatefulWidget {
 }
 
 class _ProfileScreenState extends State<ProfileScreen> {
-  final _authService = AuthService();
   final _picker = ImagePicker();
   Map<String, dynamic>? _userData;
   bool _isLoading = true;
@@ -46,8 +45,12 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
     try {
       // 2. МЕРЕЖА (У фоні)
+      final token = await AuthService.getAccessToken();
+      final headers = token != null ? {'Authorization': 'Bearer $token'} : null;
+
       final response = await http.get(
         Uri.parse('${AuthService.baseUrl}/profile/$userId'),
+        headers: headers,
       );
 
       if (response.statusCode == 200) {
@@ -377,7 +380,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                         iconColor: AppColors.iconColor,
                         titleColor: AppColors.textWhite,
                         onTap: () async {
-                          await _authService.logout();
+                          await AuthService.logout();
                           if (mounted) {
                             Navigator.of(context).pushNamedAndRemoveUntil(
                               '/welcome',
@@ -794,7 +797,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
               try {
                 final userId = await AuthService.getStoredUserId();
                 if (userId != null) {
-                  await _authService.deleteAccount(userId);
+                  await AuthService.deleteAccount(userId);
                   if (mounted) {
                     Navigator.of(
                       context,

@@ -22,7 +22,7 @@ class _AccountSettingsScreenState extends State<AccountSettingsScreen> {
       if (userId == null) throw Exception('User ID not found');
 
       // Використовуємо централізований метод в AuthService
-      await AuthService().deleteAccount(userId);
+      await AuthService.deleteAccount(userId);
 
       if (!mounted) return;
 
@@ -135,7 +135,7 @@ class _AccountSettingsScreenState extends State<AccountSettingsScreen> {
                         iconColor: AppColors.iconColor,
                         titleColor: AppColors.textWhite,
                         onTap: () async {
-                          await AuthService().logout();
+                          await AuthService.logout();
                           if (mounted) {
                             Navigator.of(context).pushNamedAndRemoveUntil(
                               '/welcome',

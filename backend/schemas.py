@@ -33,6 +33,7 @@ class UserProfileSchema(BaseModel):
     target_weight: Optional[float] = None  # ✅ ДОДАНО
     weekly_change_goal: Optional[float] = None  # ✅ ДОДАНО e.g. -0.5
     estimated_end_date: Optional[str] = None  # ✅ ДОДАНО e.g. "2024-05-01"
+    body_fat: Optional[float] = None # ✅ ДОДАНО body fat percentage
 
 class RegisterSchema(BaseModel):
     email: str
@@ -138,3 +139,13 @@ class VitaminSchema(BaseModel):
     start_date: str # ISO format string
     duration_days: Optional[int] = None
     schedules: List[Dict[str, Any]] # [{"time": "08:00", "dose": "1 шт"}]
+
+class TokenResponse(BaseModel):
+    user_id: str
+    email: Optional[str] = None
+    access_token: str
+    refresh_token: Optional[str] = None
+    token_type: str = "bearer"
+
+class RefreshTokenSchema(BaseModel):
+    refresh_token: str

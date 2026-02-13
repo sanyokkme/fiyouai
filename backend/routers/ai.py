@@ -53,6 +53,7 @@ async def analyze_image_only(user_id: str = Form(...), file: UploadFile = File(.
 
 @router.get("/generate_recipe/{user_id}")
 async def generate_recipe(user_id: str, service: NutritionService = Depends(get_nutrition_service)):
+    user_id = user_id.strip()
     if is_invalid_user(user_id): raise HTTPException(status_code=400, detail="User not logged in")
     
     status = service.get_daily_status(user_id)
@@ -67,6 +68,7 @@ async def generate_recipe(user_id: str, service: NutritionService = Depends(get_
 
 @router.get("/get_tips/{user_id}")
 async def get_tips(user_id: str, service: NutritionService = Depends(get_nutrition_service)):
+    user_id = user_id.strip()
     if is_invalid_user(user_id): 
         return {"summary": "", "tips": []}
 

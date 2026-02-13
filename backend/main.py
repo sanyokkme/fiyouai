@@ -14,7 +14,7 @@ from dotenv import load_dotenv
 load_dotenv()
 
 # Імпорт роутерів
-from routers import auth, profile, tracking, ai, admin
+from routers import auth, profile, tracking, ai, admin, weight
 
 # НАЛАШТУВАННЯ
 POLAND_TZ = pytz.timezone('Europe/Warsaw')
@@ -82,12 +82,13 @@ app.add_middleware(
 # Логування запитів
 @app.middleware("http")
 async def log_requests(request: Request, call_next):
-    console.print(f"[bold green]{request.method}[/] -> [white]{request.url.path}[/]")
-    
     response = await call_next(request)
-    
     color = "green" if response.status_code < 400 else "red"
-    console.print(f"   ┗━ [status: [{color}]{response.status_code}[/]]")
+
+    console.print(f"""
+[bold green]{request.method}[/] -> [white]{request.url.path}[/]
+┗━ [status: [{color}]{response.status_code}[/]] for [bold]{request.url.path}[/]
+    """)
     
     return response
 
@@ -97,3 +98,4 @@ app.include_router(profile.router)
 app.include_router(tracking.router)
 app.include_router(ai.router)
 app.include_router(admin.router)
+app.include_router(weight.router)

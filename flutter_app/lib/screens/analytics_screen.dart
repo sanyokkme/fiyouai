@@ -19,22 +19,23 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
   Map<String, dynamic> _data = {};
   List<Map<String, dynamic>> _chartData = [];
   bool _isLoading = true;
-  int _avgCalories = 0;
   String? _aiSummary;
-  bool _isBarChart = true;
 
-  // PageView controller for swiping charts
-  late PageController _pageController;
-  int _currentIndex = 0;
+  // Chart type state per section
+  // true = Bar, false = Line
+  final Map<String, bool> _chartTypes = {
+    'calories': true,
+    'water': true,
+    'macros': true,
+  };
 
-  // Ordered list of metrics to display
-  final List<String> _orderedMetrics = [
-    'calories',
-    'water',
-    'protein',
-    'fat',
-    'carbs',
-  ];
+  // Controller for the Macros Carousel
+  late PageController _macroPageController;
+  int _currentMacroIndex = 0;
+  final List<String> _macroMetrics = ['protein', 'fat', 'carbs'];
+
+  // Main metrics list (excluding individual macros as they are grouped)
+  final List<String> _mainMetrics = ['calories', 'water'];
 
   // Colors for each metric
   final Map<String, Color> _metricColors = {
@@ -47,8 +48,8 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
 
   // Metric names in Ukrainian
   final Map<String, String> _metricNames = {
-    'calories': 'Калорії',
-    'water': 'Вода',
+    'calories': 'Споживання калорій',
+    'water': 'Споживання води',
     'protein': 'Білки',
     'fat': 'Жири',
     'carbs': 'Вуглеводи',
@@ -57,15 +58,18 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
   @override
   void initState() {
     super.initState();
-    _pageController = PageController();
+    _macroPageController = PageController();
     _fetchFullAnalytics();
   }
 
   @override
   void dispose() {
-    _pageController.dispose();
+    _macroPageController.dispose();
     super.dispose();
   }
+
+  // ... (keeping _fetchFullAnalytics and _processData same but removing _avgCalories state use if calculated on fly)
+  // Actually, _avgCalories was used. We can compute it per metric.
 
   Future<void> _fetchFullAnalytics() async {
     final prefs = await SharedPreferences.getInstance();
@@ -79,7 +83,8 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
 
     try {
       // --- ЗАПИТ НА СЕРВЕР ---
-      print('DEBUG: App Fetching Analytics for UserID: $userId');
+      // --- ЗАПИТ НА СЕРВЕР ---
+      debugPrint('📱 ANALYTICS -> Fetching for UserID: $userId');
       final responses = await Future.wait([
         http.get(Uri.parse('${AuthService.baseUrl}/user_status/$userId')),
         http.get(Uri.parse('${AuthService.baseUrl}/analytics/$userId')),
@@ -121,27 +126,8 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
     List historyList,
     Map<String, dynamic>? aiData,
   ) {
-    print('📊 Analytics: Processing data...');
-    print('  History items: ${historyList.length}');
-    print('  Raw history: $historyList');
-
     // 1. Заповнюємо пропуски
     final filledData = _fillMissingDays(historyList);
-    print('  Filled days: ${filledData.length}');
-    print('  Chart data sample: ${filledData.take(2)}');
-
-    // 2. Рахуємо середнє калорій
-    int total = 0;
-    int activeDays = 0;
-    for (var item in historyList) {
-      int val = (item['calories'] as num?)?.toInt() ?? 0;
-      if (val > 0) {
-        total += val;
-        activeDays++;
-      }
-    }
-    int avg = activeDays > 0 ? (total / activeDays).round() : 0;
-    print('  Average calories: $avg from $activeDays active days');
 
     // 3. AI
     String aiText = "Аналізуємо ваші дані...";
@@ -153,7 +139,6 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
       setState(() {
         _data = statusData;
         _chartData = filledData;
-        _avgCalories = avg;
         _aiSummary = aiText;
         _isLoading = false;
       });
@@ -245,41 +230,6 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    // Summary cards (Середнє + Ціль)
-                    Row(
-                      children: [
-                        Expanded(
-                          child: Container(
-                            height: 80,
-                            decoration: BoxDecoration(
-                              color: AppColors.glassCardColor,
-                              borderRadius: BorderRadius.circular(16),
-                            ),
-                          ),
-                        ),
-                        const SizedBox(width: 12),
-                        Expanded(
-                          child: Container(
-                            height: 80,
-                            decoration: BoxDecoration(
-                              color: AppColors.glassCardColor,
-                              borderRadius: BorderRadius.circular(16),
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 25),
-                    // Header: "Деталі раціону (сьогодні)"
-                    Container(
-                      width: 220,
-                      height: 18,
-                      decoration: BoxDecoration(
-                        color: AppColors.glassCardColor,
-                        borderRadius: BorderRadius.circular(4),
-                      ),
-                    ),
-                    const SizedBox(height: 15),
                     // Macros detail card with 3 progress bars
                     Container(
                       height: 240,
@@ -298,55 +248,24 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
                         ],
                       ),
                     ),
-                    const SizedBox(height: 25),
-                    // Header: "Динаміка за 7 днів"
-                    Container(
-                      width: 180,
-                      height: 18,
-                      decoration: BoxDecoration(
-                        color: AppColors.glassCardColor,
-                        borderRadius: BorderRadius.circular(4),
+                    const SizedBox(height: 30),
+                    // Vertical charts skeleton
+                    for (int i = 0; i < 3; i++) ...[
+                      Container(
+                        height: 20,
+                        width: 150,
+                        color: Colors.white,
+                        margin: const EdgeInsets.only(bottom: 15),
                       ),
-                    ),
-                    const SizedBox(height: 15),
-                    // Metric selector chips
-                    SingleChildScrollView(
-                      scrollDirection: Axis.horizontal,
-                      child: Row(
-                        children: List.generate(
-                          5,
-                          (index) => Padding(
-                            padding: const EdgeInsets.only(right: 8.0),
-                            child: Container(
-                              width: 90,
-                              height: 32,
-                              decoration: BoxDecoration(
-                                color: AppColors.glassCardColor,
-                                borderRadius: BorderRadius.circular(16),
-                              ),
-                            ),
-                          ),
+                      Container(
+                        height: 250,
+                        decoration: BoxDecoration(
+                          color: AppColors.glassCardColor,
+                          borderRadius: BorderRadius.circular(16),
                         ),
+                        margin: const EdgeInsets.only(bottom: 25),
                       ),
-                    ),
-                    const SizedBox(height: 15),
-                    // Chart card
-                    Container(
-                      height: 400,
-                      decoration: BoxDecoration(
-                        color: AppColors.glassCardColor,
-                        borderRadius: BorderRadius.circular(24),
-                      ),
-                    ),
-                    const SizedBox(height: 25),
-                    // AI Summary card placeholder
-                    Container(
-                      height: 140,
-                      decoration: BoxDecoration(
-                        color: AppColors.glassCardColor,
-                        borderRadius: BorderRadius.circular(24),
-                      ),
-                    ),
+                    ],
                   ],
                 ),
               ),
@@ -394,322 +313,255 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
     );
   }
 
+  // Helper to calculate average for any metric
+  int _calculateAverage(String metric) {
+    if (_chartData.isEmpty) return 0;
+
+    double total = 0;
+    int activeDays = 0;
+    for (var item in _chartData) {
+      double val = _getMetricValue(metric, item);
+      if (val > 0) {
+        total += val;
+        activeDays++;
+      }
+    }
+    return activeDays > 0 ? (total / activeDays).round() : 0;
+  }
+
+  // Helper to get target for any metric
+  int _getTarget(String metric) {
+    switch (metric) {
+      case 'calories':
+        return (_data['target'] ?? 2000) as int;
+      case 'water':
+        return (_data['water_target'] ?? 2000) as int;
+      case 'protein':
+        return (_data['target_p'] ?? 150) as int;
+      case 'fat':
+        return (_data['target_f'] ?? 80) as int;
+      case 'carbs':
+        return (_data['target_c'] ?? 250) as int;
+      default:
+        return 0;
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
-    return Container(
-      color: AppColors.backgroundDark,
-      child: AppColors.buildBackgroundWithBlurSpots(
-        child: SafeArea(
-          child: _isLoading && _chartData.isEmpty
-              ? _buildSkeleton()
-              : Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Padding(
-                      padding: const EdgeInsets.fromLTRB(25, 20, 25, 10),
-                      child: Row(
-                        children: [
-                          Text(
-                            'Аналітика',
-                            style: TextStyle(
-                              fontSize: 32,
-                              fontWeight: FontWeight.bold,
-                              color: AppColors.textWhite,
-                            ),
+    return AppColors.buildBackgroundWithBlurSpots(
+      child: SafeArea(
+        child: _isLoading && _chartData.isEmpty
+            ? _buildSkeleton()
+            : Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(25, 20, 25, 10),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Text(
+                          'Аналітика',
+                          style: TextStyle(
+                            fontSize: 32,
+                            fontWeight: FontWeight.bold,
+                            color: AppColors.textWhite,
                           ),
-                        ],
-                      ),
+                        ),
+                      ],
                     ),
-                    Expanded(
-                      child: RefreshIndicator(
-                        onRefresh: _fetchFullAnalytics,
-                        color: AppColors.primaryColor,
-                        child: SingleChildScrollView(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 20,
-                            vertical: 10,
-                          ),
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              _buildSummaryCards(),
-                              const SizedBox(height: 25),
-
-                              Text(
-                                "Деталі раціону (сьогодні)",
-                                style: TextStyle(
-                                  color: AppColors.textWhite,
-                                  fontSize: 18,
-                                  fontWeight: FontWeight.bold,
-                                ),
+                  ),
+                  Expanded(
+                    child: RefreshIndicator(
+                      onRefresh: _fetchFullAnalytics,
+                      color: AppColors.primaryColor,
+                      child: SingleChildScrollView(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 20,
+                          vertical: 10,
+                        ),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            // 1. Macros Detail (Today)
+                            Text(
+                              "Сьогодні",
+                              style: TextStyle(
+                                color: AppColors.textWhite,
+                                fontSize: 20,
+                                fontWeight: FontWeight.bold,
                               ),
-                              const SizedBox(height: 15),
-                              _buildMacrosDetailCard(),
+                            ),
+                            const SizedBox(height: 15),
+                            _buildMacrosDetailCard(),
 
-                              const SizedBox(height: 25),
-                              Text(
-                                "Динаміка за 7 днів",
-                                style: TextStyle(
-                                  color: AppColors.textWhite,
-                                  fontSize: 18,
-                                  fontWeight: FontWeight.bold,
-                                ),
+                            const SizedBox(height: 30),
+
+                            // 2. Charts List
+                            // Render Calories and Water
+                            ..._mainMetrics.map(
+                              (metric) => Padding(
+                                padding: const EdgeInsets.only(bottom: 25.0),
+                                child: _buildMetricChartCard(metric),
                               ),
-                              const SizedBox(height: 15),
-                              _buildMetricSelector(),
-                              const SizedBox(height: 15),
-                              _buildChartCard(),
+                            ),
 
-                              const SizedBox(height: 25),
-                              if (_aiSummary != null) _buildAiSummaryCard(),
-                              const SizedBox(height: 40),
-                            ],
-                          ),
+                            // Render Macros Carousel
+                            _buildMacrosCarouselCard(),
+
+                            const SizedBox(height: 25),
+
+                            if (_aiSummary != null) _buildAiSummaryCard(),
+                            const SizedBox(height: 40),
+                          ],
                         ),
                       ),
                     ),
-                  ],
-                ),
-        ),
+                  ),
+                ],
+              ),
       ),
     );
   }
 
-  Widget _buildSummaryCards() {
-    return Row(
+  Widget _buildMetricChartCard(String metric) {
+    final int avg = _calculateAverage(metric);
+    final int target = _getTarget(metric);
+    final String unit = _getUnitForMetric(metric);
+    final String title = _metricNames[metric] ?? metric;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Expanded(
-          child: _buildInfoCard(
-            "Середнє",
-            "$_avgCalories",
-            "ккал",
-            Icons.speed,
-            Colors.orangeAccent,
-          ),
-        ),
-        const SizedBox(width: 12),
-        Expanded(
-          child: _buildInfoCard(
-            "Ціль",
-            "${_data['target'] ?? 2000}",
-            "ккал",
-            Icons.flag,
-            AppColors.primaryColor,
-          ),
-        ),
-      ],
-    );
-  }
-
-  Widget _buildInfoCard(
-    String title,
-    String value,
-    String unit,
-    IconData icon,
-    Color color,
-  ) {
-    return Container(
-      padding: const EdgeInsets.symmetric(vertical: 15, horizontal: 15),
-      decoration: BoxDecoration(
-        color: AppColors.glassCardColor,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: AppColors.textWhite.withValues(alpha: 0.1)),
-      ),
-      child: Row(
-        children: [
-          Container(
-            padding: const EdgeInsets.all(8),
-            decoration: BoxDecoration(
-              color: color.withValues(alpha: 0.1),
-              shape: BoxShape.circle,
+        // Title and Toggle
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Text(
+              title,
+              style: TextStyle(
+                color: AppColors.textWhite,
+                fontSize: 20,
+                fontWeight: FontWeight.bold,
+              ),
             ),
-            child: Icon(icon, color: color, size: 20),
-          ),
-          const SizedBox(width: 12),
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                title,
-                style: TextStyle(color: AppColors.textSecondary, fontSize: 12),
+            Container(
+              padding: const EdgeInsets.all(4),
+              decoration: BoxDecoration(
+                color: AppColors.glassCardColor,
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: Colors.white10),
               ),
-              const SizedBox(height: 2),
-              RichText(
-                text: TextSpan(
-                  children: [
-                    TextSpan(
-                      text: value,
-                      style: TextStyle(
-                        fontSize: 18,
-                        fontWeight: FontWeight.bold,
-                        color: AppColors.textWhite,
-                      ),
-                    ),
-                    TextSpan(
-                      text: " $unit",
-                      style: TextStyle(
-                        fontSize: 10,
-                        color: AppColors.textSecondary,
-                      ),
-                    ),
-                  ],
-                ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  _buildChartTypeBtn(Icons.bar_chart, true, metric),
+                  const SizedBox(width: 4),
+                  _buildChartTypeBtn(Icons.show_chart, false, metric),
+                ],
               ),
-            ],
-          ),
-        ],
-      ),
-    );
-  }
+            ),
+          ],
+        ),
+        const SizedBox(height: 15),
 
-  Widget _buildMetricSelector() {
-    return SingleChildScrollView(
-      scrollDirection: Axis.horizontal,
-      child: Row(
-        children: _orderedMetrics.asMap().entries.map((entry) {
-          final int index = entry.key;
-          final String metric = entry.value;
-          return Padding(
-            padding: const EdgeInsets.only(right: 8.0),
-            child: _buildMetricChip(metric, index),
-          );
-        }).toList(),
-      ),
-    );
-  }
-
-  Widget _buildMetricChip(String metric, int index) {
-    final bool isSelected = _currentIndex == index;
-    final Color color = _metricColors[metric]!;
-    final String name = _metricNames[metric]!;
-
-    final Map<String, IconData> icons = {
-      'calories': Icons.local_fire_department,
-      'water': Icons.water_drop,
-      'protein': Icons.egg,
-      'fat': Icons.opacity,
-      'carbs': Icons.rice_bowl,
-    };
-
-    return ChoiceChip(
-      selected: isSelected,
-      label: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(
-            icons[metric]!,
-            size: 16,
-            color: isSelected ? Colors.black : color,
-          ),
-          const SizedBox(width: 6),
-          Text(name),
-        ],
-      ),
-      onSelected: (bool selected) {
-        if (selected) {
-          _pageController.animateToPage(
-            index,
-            duration: const Duration(milliseconds: 300),
-            curve: Curves.easeInOut,
-          );
-        }
-      },
-      selectedColor: color,
-      backgroundColor: AppColors.glassCardColor,
-      labelStyle: TextStyle(
-        color: isSelected ? Colors.black : AppColors.textWhite,
-        fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
-        fontSize: 13,
-      ),
-      side: BorderSide(
-        color: isSelected ? color : color.withValues(alpha: 0.3),
-        width: 1.5,
-      ),
-      showCheckmark: false,
-    );
-  }
-
-  Widget _buildChartCard() {
-    return Container(
-      height: 400,
-      padding: const EdgeInsets.fromLTRB(10, 15, 20, 10),
-      decoration: BoxDecoration(
-        color: AppColors.glassCardColor,
-        borderRadius: BorderRadius.circular(24),
-        border: Border.all(color: AppColors.glassCardColor),
-      ),
-      child: Column(
-        children: [
-          Padding(
-            padding: const EdgeInsets.only(bottom: 10, left: 10, right: 0),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        // Info Row (Avg + Target)
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  _metricNames[_orderedMetrics[_currentIndex]] ?? "Графік",
+                  "Середнє значення",
                   style: TextStyle(
-                    color: AppColors.textWhite,
-                    fontSize: 16,
-                    fontWeight: FontWeight.bold,
+                    color: AppColors.textSecondary,
+                    fontSize: 13,
                   ),
                 ),
-                Container(
-                  padding: const EdgeInsets.all(2),
-                  decoration: BoxDecoration(
-                    color: AppColors.glassCardColor,
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
+                const SizedBox(height: 4),
+                RichText(
+                  text: TextSpan(
                     children: [
-                      _buildChartTypeBtn(Icons.bar_chart, true),
-                      _buildChartTypeBtn(Icons.show_chart, false),
+                      TextSpan(
+                        text: "$avg",
+                        style: TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.w600,
+                          color: AppColors.textWhite,
+                        ),
+                      ),
+                      TextSpan(
+                        text: " $unit",
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: AppColors.textSecondary,
+                        ),
+                      ),
                     ],
                   ),
                 ),
               ],
             ),
-          ),
-          Expanded(
-            child: PageView.builder(
-              controller: _pageController,
-              onPageChanged: (index) {
-                setState(() => _currentIndex = index);
-              },
-              itemCount: _orderedMetrics.length,
-              itemBuilder: (context, index) {
-                final metric = _orderedMetrics[index];
-                return Padding(
-                  padding: const EdgeInsets.only(top: 10),
-                  child: _buildSingleChart(metric),
-                );
-              },
-            ),
-          ),
-          const SizedBox(height: 10),
-          Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: List.generate(_orderedMetrics.length, (index) {
-              return AnimatedContainer(
-                duration: const Duration(milliseconds: 300),
-                margin: const EdgeInsets.symmetric(horizontal: 4),
-                height: 6,
-                width: _currentIndex == index ? 24 : 6,
-                decoration: BoxDecoration(
-                  color: _currentIndex == index
-                      ? _metricColors[_orderedMetrics[index]]
-                      : AppColors.textSecondary.withValues(alpha: 0.3),
-                  borderRadius: BorderRadius.circular(3),
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.end,
+              children: [
+                Text(
+                  "Ціль",
+                  style: TextStyle(
+                    color: AppColors.textSecondary,
+                    fontSize: 13,
+                  ),
                 ),
-              );
-            }),
-          ),
-        ],
-      ),
+                const SizedBox(height: 4),
+                RichText(
+                  text: TextSpan(
+                    children: [
+                      TextSpan(
+                        text: "$target",
+                        style: TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.w600,
+                          color: AppColors.textWhite,
+                        ),
+                      ),
+                      TextSpan(
+                        text: " $unit",
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: AppColors.textSecondary,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
+
+        const SizedBox(height: 15),
+
+        // Chart Area
+        Container(
+          height: 250,
+          width: double.infinity,
+          // No padding/decoration to keep it clean like the design usually implies,
+          // or minimal transparent bg.
+          child: _buildSingleChart(metric),
+        ),
+      ],
     );
   }
 
   Widget _buildSingleChart(String metric) {
+    // Check which toggle to use
+    // If it's a macro, use the 'macros' key for the toggle state
+    // If it's calories/water, use the metric key
+    String toggleKey = _macroMetrics.contains(metric) ? 'macros' : metric;
+    bool isBar = _chartTypes[toggleKey] ?? true;
+
     final double maxY = _calculateDynamicMaxY(metric);
     final double interval = _calculateGridInterval(maxY);
 
@@ -753,7 +605,7 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
       ),
     );
 
-    return _isBarChart
+    return isBar
         ? BarChart(
             BarChartData(
               maxY: maxY,
@@ -815,10 +667,11 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
           );
   }
 
-  Widget _buildChartTypeBtn(IconData icon, bool isBar) {
-    final isActive = _isBarChart == isBar;
+  Widget _buildChartTypeBtn(IconData icon, bool isBar, String metric) {
+    bool currentIsBar = _chartTypes[metric] ?? true;
+    final isActive = currentIsBar == isBar;
     return GestureDetector(
-      onTap: () => setState(() => _isBarChart = isBar),
+      onTap: () => setState(() => _chartTypes[metric] = isBar),
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
         decoration: BoxDecoration(
@@ -835,6 +688,190 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
               : AppColors.textSecondary.withValues(alpha: 0.3),
         ),
       ),
+    );
+  }
+
+  Widget _buildMacrosCarouselCard() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        // Header with Toggle (applies to all macros in carousel)
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Text(
+              "Макронутрієнти",
+              style: TextStyle(
+                color: AppColors.textWhite,
+                fontSize: 20,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+            Container(
+              padding: const EdgeInsets.all(4),
+              decoration: BoxDecoration(
+                color: AppColors.glassCardColor,
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: Colors.white10),
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  _buildChartTypeBtn(Icons.bar_chart, true, 'macros'),
+                  const SizedBox(width: 4),
+                  _buildChartTypeBtn(Icons.show_chart, false, 'macros'),
+                ],
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 15),
+
+        // Carousel Container
+        Container(
+          height: 380, // Taller to accommodate individual macro info + chart
+          decoration: BoxDecoration(
+            color: AppColors.glassCardColor,
+            borderRadius: BorderRadius.circular(24),
+            border: Border.all(color: AppColors.glassCardColor),
+          ),
+          child: Column(
+            children: [
+              Expanded(
+                child: PageView.builder(
+                  controller: _macroPageController,
+                  onPageChanged: (index) {
+                    setState(() => _currentMacroIndex = index);
+                  },
+                  itemCount: _macroMetrics.length,
+                  itemBuilder: (context, index) {
+                    final metric = _macroMetrics[index];
+                    return Padding(
+                      padding: const EdgeInsets.all(20),
+                      child: _buildSingleMacroPage(metric),
+                    );
+                  },
+                ),
+              ),
+              // Indicators
+              Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: List.generate(_macroMetrics.length, (index) {
+                  return AnimatedContainer(
+                    duration: const Duration(milliseconds: 300),
+                    margin: const EdgeInsets.symmetric(
+                      horizontal: 4,
+                      vertical: 15,
+                    ),
+                    height: 6,
+                    width: _currentMacroIndex == index ? 24 : 6,
+                    decoration: BoxDecoration(
+                      color: _currentMacroIndex == index
+                          ? _metricColors[_macroMetrics[index]]
+                          : AppColors.textSecondary.withValues(alpha: 0.3),
+                      borderRadius: BorderRadius.circular(3),
+                    ),
+                  );
+                }),
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildSingleMacroPage(String metric) {
+    final int avg = _calculateAverage(metric);
+    final int target = _getTarget(metric);
+    final String unit = _getUnitForMetric(metric);
+    final String title = _metricNames[metric] ?? metric;
+
+    return Column(
+      children: [
+        Text(
+          title,
+          style: TextStyle(
+            color: AppColors.textWhite,
+            fontSize: 18,
+            fontWeight: FontWeight.bold,
+          ),
+        ),
+        const SizedBox(height: 15),
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  "Середнє",
+                  style: TextStyle(
+                    color: AppColors.textSecondary,
+                    fontSize: 13,
+                  ),
+                ),
+                RichText(
+                  text: TextSpan(
+                    children: [
+                      TextSpan(
+                        text: "$avg",
+                        style: TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.w600,
+                          color: AppColors.textWhite,
+                        ),
+                      ),
+                      TextSpan(
+                        text: " $unit",
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: AppColors.textSecondary,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.end,
+              children: [
+                Text(
+                  "Ціль",
+                  style: TextStyle(
+                    color: AppColors.textSecondary,
+                    fontSize: 13,
+                  ),
+                ),
+                RichText(
+                  text: TextSpan(
+                    children: [
+                      TextSpan(
+                        text: "$target",
+                        style: TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.w600,
+                          color: AppColors.textWhite,
+                        ),
+                      ),
+                      TextSpan(
+                        text: " $unit",
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: AppColors.textSecondary,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
+        const SizedBox(height: 15),
+        Expanded(child: _buildSingleChart(metric)),
+      ],
     );
   }
 
@@ -1122,7 +1159,7 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
                     ),
                   ),
                   TextSpan(
-                    text: " / ${target}г",
+                    text: " / $targetг",
                     style: TextStyle(
                       color: AppColors.textSecondary,
                       fontSize: 14,

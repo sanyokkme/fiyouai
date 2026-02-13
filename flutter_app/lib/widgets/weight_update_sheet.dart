@@ -49,22 +49,21 @@ class _WeightUpdateSheetState extends State<WeightUpdateSheet> {
   Future<void> _updateWeight(double newWeight) async {
     try {
       final userId = await AuthService.getStoredUserId();
-      if (userId == null) return;
-
-      widget.onWeightUpdated(newWeight);
+      final token = await AuthService.getAccessToken();
+      if (userId == null || token == null) return;
 
       widget.onWeightUpdated(newWeight);
 
       // but simple profile update here is fine.
 
+      // Use new weight history endpoint
       final res = await http.post(
-        Uri.parse('${AuthService.baseUrl}/profile/update'),
-        headers: {'Content-Type': 'application/json'},
-        body: jsonEncode({
-          "user_id": userId,
-          "field": "weight",
-          "value": newWeight,
-        }),
+        Uri.parse('${AuthService.baseUrl}/weight/add'),
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer $token',
+        },
+        body: jsonEncode({"user_id": userId, "weight": newWeight}),
       );
 
       if (res.statusCode == 200) {
@@ -206,8 +205,9 @@ class _WeightUpdateSheetState extends State<WeightUpdateSheet> {
                   int selectedKg = minKg + _kgController.selectedItem;
                   int selectedGram = _gramController.selectedItem;
                   double finalWeight = selectedKg + (selectedGram / 10.0);
-                  _updateWeight(finalWeight);
-                  Navigator.pop(context, finalWeight);
+                  _updateWeight(finalWeight).then((_) {
+                    Navigator.pop(context, finalWeight);
+                  });
                 },
                 style: ElevatedButton.styleFrom(
                   backgroundColor: AppColors.primaryColor,

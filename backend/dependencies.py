@@ -13,9 +13,15 @@ def get_current_user(authorization: str = Header(...)) -> str:
         raise HTTPException(status_code=401, detail="Missing Token")
     token = authorization.replace("Bearer ", "")
     try:
-        payload = jwt.decode(token, settings.SUPABASE_JWT_SECRET, algorithms=["HS256"], audience="authenticated")
-        return payload["sub"]
-    except Exception:
+        # Validate via Supabase directly to avoid algorithm mismatch (ES256 vs HS256)
+        user_res = supabase.auth.get_user(token)
+        if not user_res or not user_res.user:
+            raise Exception("User verification failed")
+        return user_res.user.id
+    except Exception as e:
+        print(f"Auth Error: {e}")
+        # Fallback for dev: try to decode without verify if manual verify failed (OPTIONAL)
+        # But for now, returning 401 is correct security.
         raise HTTPException(status_code=401, detail="Invalid Token")
 
 # DI

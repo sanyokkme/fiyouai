@@ -251,7 +251,7 @@ class _LoginScreenState extends State<LoginScreen> {
                               decoration: TextDecoration.underline,
                             ),
                             recognizer: TapGestureRecognizer()
-                              ..onTap = _launchURL,
+                              ..onTap = _launchURL
                           ),
                         ],
                       ),

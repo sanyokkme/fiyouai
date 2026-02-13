@@ -1,3 +1,4 @@
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_app/services/auth_service.dart';
 import '../../constants/app_colors.dart';
@@ -31,6 +32,11 @@ class _RegisterScreenState extends State<RegisterScreen> {
     _passwordController.dispose();
     _confirmPasswordController.dispose();
     super.dispose();
+  }
+
+  void _launchURL() {
+    // Тут буде логіка відкриття браузера через url_launcher
+    debugPrint("Відкриваємо правила та політику...");
   }
 
   void _showError(String msg) {
@@ -218,6 +224,32 @@ class _RegisterScreenState extends State<RegisterScreen> {
                           ),
                         ),
                   const SizedBox(height: 20),
+                  Center(
+                    child: RichText(
+                      textAlign: TextAlign.center,
+                      text: TextSpan(
+                        style: const TextStyle(
+                          color: Colors.white38,
+                          fontSize: 12,
+                          height: 1.5,
+                        ),
+                        children: [
+                          const TextSpan(
+                            text: "Продовжуючи, ви погоджуєтесь з ",
+                          ),
+                          TextSpan(
+                            text: "\nПравилами і політикою конфіденційності",
+                            style: TextStyle(
+                              color: AppColors.primaryColor,
+                              decoration: TextDecoration.underline,
+                            ),
+                            recognizer: TapGestureRecognizer()
+                              ..onTap = _launchURL,
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
                 ],
               ),
             ),

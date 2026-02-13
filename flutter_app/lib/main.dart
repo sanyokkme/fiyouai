@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_app/services/notification_service.dart';
 import 'package:flutter_app/services/theme_service.dart';
-import 'package:google_fonts/google_fonts.dart';
+
 import 'package:shared_preferences/shared_preferences.dart';
+
+import 'package:flutter_app/constants/app_fonts.dart';
 
 // Імпорти екранів
 import 'screens/welcome_screen.dart';
@@ -44,7 +46,7 @@ void main() async {
 class MyApp extends StatelessWidget {
   final bool isLoggedIn;
 
-  MyApp({super.key, required this.isLoggedIn});
+  const MyApp({super.key, required this.isLoggedIn});
 
   @override
   Widget build(BuildContext context) {
@@ -69,10 +71,8 @@ class MyApp extends StatelessWidget {
                 scaffoldBackgroundColor: isDark
                     ? const Color(0xFF0F0F0F)
                     : const Color(0xFFF5F5F7),
-                textTheme:
-                    GoogleFonts.interTextTheme(
-                      Theme.of(context).textTheme,
-                    ).apply(
+                textTheme: AppFonts.mainTextTheme(Theme.of(context).textTheme)
+                    .apply(
                       bodyColor: isDark ? Colors.white : Colors.black,
                       displayColor: isDark ? Colors.white : Colors.black,
                     ),

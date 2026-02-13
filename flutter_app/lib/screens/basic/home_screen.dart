@@ -1,21 +1,33 @@
+// Обовязкові імпорти
 import 'dart:math';
-import 'package:flutter/material.dart';
-import 'package:http/http.dart' as http;
-import 'dart:convert';
 import 'dart:async';
+import 'dart:convert';
+import 'package:flutter/material.dart';
 import 'package:shimmer/shimmer.dart';
 import 'package:confetti/confetti.dart';
+import 'package:http/http.dart' as http;
 import 'package:google_fonts/google_fonts.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
-import '../../services/data_manager.dart';
-import '../../services/auth_service.dart';
-import '../../services/notification_service.dart';
-import '../../constants/app_colors.dart';
-import 'package:flutter_app/widgets/weight_update_sheet.dart';
-import 'package:flutter_app/screens/story_view_screen.dart';
-import 'package:flutter_app/screens/all_vitamins_screen.dart';
+// Імпорти сервісів
+import 'package:flutter_app/services/data_manager.dart';
+import 'package:flutter_app/services/auth_service.dart';
+import 'package:flutter_app/services/notification_service.dart';
 
+// Імпорти констант
+import 'package:flutter_app/constants/app_colors.dart';
+import 'package:fl_chart/fl_chart.dart'; // Add fl_chart import
+
+// Імпорти віджетів
+import 'package:flutter_app/widgets/weight_update_sheet.dart';
+
+// Імпорти екранів
+// import 'package:flutter_app/screens/story_view_screen.dart'; // Unused
+import 'package:flutter_app/screens/all_vitamins_screen.dart';
+import 'package:flutter_app/screens/sleep_calculator_screen.dart';
+import 'package:flutter_app/screens/weight_tracker_screen.dart';
+
+// Глобальна змінна для перевірки запуску конфетті
 bool hasPlayedConfettiGlobal = false;
 
 class HomeScreen extends StatefulWidget {
@@ -25,7 +37,8 @@ class HomeScreen extends StatefulWidget {
   State<HomeScreen> createState() => HomeScreenState();
 }
 
-class HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
+class HomeScreenState extends State<HomeScreen>
+    with TickerProviderStateMixin, WidgetsBindingObserver {
   Map<String, dynamic>? _status;
   List<dynamic> _vitamins = [];
   bool _isLoading = true;
@@ -33,38 +46,131 @@ class HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   late PageController _pageController;
   String _greetingText = "Привіт!";
 
-  // --- WEEKLY CALENDAR STATE ---
+  // Стан тижневого календаря
   DateTime _selectedDate = DateTime.now();
-  final Map<String, dynamic> _historyData = {}; // Key: 'yyyy-MM-dd'
+  final Map<String, dynamic> _historyData = {};
 
   Timer? _pollingTimer;
   bool _isFirstNetworkLoad = true;
-  bool _showAllVitamins = false;
+
+  // Анімація переходу дня
+  late AnimationController _dayAnimController;
+  late CurvedAnimation _dayAnimation;
+
+  // Анімація хвилі
+  late AnimationController _waveController;
+
+  // Змінні для відображення даних
+  double _displayEaten = 0;
+  double _displayProtein = 0;
+  double _displayFat = 0;
+  double _displayCarbs = 0;
+  double _displayWater = 0;
+  double _fromEaten = 0,
+      _fromProtein = 0,
+      _fromFat = 0,
+      _fromCarbs = 0,
+      _fromWater = 0;
+  double _toEaten = 0, _toProtein = 0, _toFat = 0, _toCarbs = 0, _toWater = 0;
+  bool _displayValuesInitialized = false;
 
   @override
   void initState() {
     super.initState();
+
     WidgetsBinding.instance.addObserver(this);
+
+    // Контролер конфетті
     _confettiController = ConfettiController(
       duration: const Duration(seconds: 3),
     );
+
+    // Контролер сторінок
     _pageController = PageController(viewportFraction: 0.32);
 
+    // Анімація + контролер переходу дня
+    _dayAnimController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 600),
+    );
+    _dayAnimation = CurvedAnimation(
+      parent: _dayAnimController,
+      curve: Curves.easeOutCubic,
+    );
+
+    // Слухач анімації переходу дня
+    _dayAnimController.addListener(() {
+      final t = _dayAnimation.value;
+      setState(() {
+        _displayEaten = _fromEaten + (_toEaten - _fromEaten) * t;
+        _displayProtein = _fromProtein + (_toProtein - _fromProtein) * t;
+        _displayFat = _fromFat + (_toFat - _fromFat) * t;
+        _displayCarbs = _fromCarbs + (_toCarbs - _fromCarbs) * t;
+        _displayWater = _fromWater + (_toWater - _fromWater) * t;
+      });
+    });
+
+    // Анімація + контролер хвилі
+    _waveController = AnimationController(
+      vsync: this,
+      duration: const Duration(seconds: 5),
+    )..repeat();
+
     _requestNotificationPermissions();
-
+    DataManager().prefetchAllData();
     _fetchStatus();
-    _fetchHistory(); // Fetch historical data
+    _fetchHistory();
     _fetchVitamins();
-
-    // Перевірка чи це перший вхід за день і показ діалогу при потребі
+    _loadWeightHistory(); // Load weight history for graph
     _checkAndShowDailyWeightDialog();
 
+    // Таймер для періодичного оновлення даних
     _pollingTimer = Timer.periodic(const Duration(seconds: 60), (timer) {
       _fetchStatus(isPolling: true);
       _fetchVitamins();
     });
   }
 
+  List<FlSpot> _weightHistory = [];
+
+  Future<void> _loadWeightHistory() async {
+    final userId = await AuthService.getStoredUserId();
+    if (userId == null) return;
+
+    final jsonStr = await DataManager().getCachedWeightHistory(userId);
+    if (jsonStr != null) {
+      try {
+        final data = jsonDecode(jsonStr);
+        if (data['history'] != null) {
+          final List<dynamic> history = data['history'];
+          // Sort by created_at (Oldest first) for the graph
+          history.sort((a, b) {
+            String dateA = a['created_at'] ?? a['date'] ?? '';
+            String dateB = b['created_at'] ?? b['date'] ?? '';
+            return dateA.compareTo(dateB);
+          });
+
+          final List<FlSpot> spots = [];
+          for (int i = 0; i < history.length; i++) {
+            // Use index as X
+            final w = double.tryParse(history[i]['weight'].toString()) ?? 0;
+            if (w > 0) {
+              spots.add(FlSpot(i.toDouble(), w));
+            }
+          }
+          if (mounted) {
+            setState(() {
+              _weightHistory = spots;
+            });
+          }
+        }
+      } catch (e) {
+        debugPrint("Error loading weight history for graph: $e");
+      }
+    }
+  }
+
+  // Запит дозволів на сповіщення
   Future<void> _requestNotificationPermissions() async {
     await NotificationService().requestPermissions();
   }
@@ -73,6 +179,8 @@ class HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
     _pollingTimer?.cancel();
+    _dayAnimController.dispose();
+    _waveController.dispose();
     _confettiController.dispose();
     _pageController.dispose();
     super.dispose();
@@ -86,6 +194,7 @@ class HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     }
   }
 
+  // Оновлення привітання
   void _updateGreeting(String? name) {
     String displayName = "Друже";
     if (name != null && name.trim().isNotEmpty) {
@@ -99,6 +208,7 @@ class HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
       return;
     }
 
+    // Список привітань
     final List<String> greetings = [
       "Привіт, $displayName!",
       "Вітаю, $displayName!",
@@ -112,6 +222,7 @@ class HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     }
   }
 
+  // Отримання даних про статус користувача
   Future<void> _fetchStatus({bool isPolling = false}) async {
     final prefs = await SharedPreferences.getInstance();
     final userId = await AuthService.getStoredUserId();
@@ -130,43 +241,18 @@ class HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
       }
     }
 
+    // Попереднє завантаження даних
     DataManager().prefetchAllData();
-
     try {
       final res = await http.get(
         Uri.parse('${AuthService.baseUrl}/user_status/$userId'),
       );
-
       if (res.statusCode == 200) {
         final newData = jsonDecode(res.body);
-
-        // 🔍 ДЕТАЛЬНЕ ЛОГУВАННЯ ДАНИХ З БЕКЕНДУ
-        print('\n═══════════════════════════════════════');
-        print('🏠 HOME SCREEN: Отримано дані з бекенду');
-        print('═══════════════════════════════════════');
-        print('📍 Endpoint: /user_status/$userId');
-        print('📦 Raw Response Body:');
-        print(res.body);
-        print('\n📊 Parsed Data:');
-        print('  • Eaten: ${newData['eaten']}');
-        print('  • Target: ${newData['target']}');
-        print('  • target_p: ${newData['target_p']}');
-        print('  • target_f: ${newData['target_f']}');
-        print('  • target_c: ${newData['target_c']}');
-        print('  • protein: ${newData['protein']}');
-        print('  • fat: ${newData['fat']}');
-        print('  • carbs: ${newData['carbs']}');
-        print('  • goal: ${newData['goal']}');
-        print('  • water: ${newData['water']}');
-        print('  • water_target: ${newData['water_target']}');
-        print('═══════════════════════════════════════\n');
-
         if (mounted && _status != null && !_isFirstNetworkLoad) {
           _checkForRemoteChanges(_status!, newData);
         }
-
         await prefs.setString('cached_status_$userId', res.body);
-
         if (mounted) {
           bool wasFirstLoad = _isFirstNetworkLoad;
           setState(() {
@@ -174,15 +260,14 @@ class HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
             _isLoading = false;
             _isFirstNetworkLoad = false;
           });
+          _loadWeightHistory(); // Refresh weight history when new data comes
           _updateGreeting(newData['name'] ?? newData['username']);
-
           bool waterMet =
               (newData['water'] ?? 0) >= (newData['water_target'] ?? 2000);
           bool foodMet =
               ((newData['eaten'] ?? 0) >= (newData['target'] ?? 2000)) &&
               ((newData['eaten'] ?? 0) > 0);
-
-          // Confetti plays only if it's NOT the first load, goal is met, and hasn't played yet this session
+          // Конфетті грає лише якщо це НЕ перший завантаження, мета досягнута, і ще не грала в цій сесії
           if (!wasFirstLoad &&
               (waterMet || foodMet) &&
               !hasPlayedConfettiGlobal) {
@@ -196,10 +281,10 @@ class HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     }
   }
 
+  // Отримання даних про вітаміни
   Future<void> _fetchVitamins() async {
     final userId = await AuthService.getStoredUserId();
     if (userId == null) return;
-
     try {
       final res = await http.get(
         Uri.parse('${AuthService.baseUrl}/vitamins/$userId'),
@@ -216,6 +301,7 @@ class HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     }
   }
 
+  // Видалення вітаміну
   Future<void> _deleteVitamin(String id) async {
     try {
       final res = await http.delete(
@@ -230,6 +316,7 @@ class HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     }
   }
 
+  // Перевірка змін даних
   void _checkForRemoteChanges(
     Map<String, dynamic> oldData,
     Map<String, dynamic> newData,
@@ -245,6 +332,7 @@ class HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     }
   }
 
+  // Показ сповіщення про успіх
   void _showSuccessNotification(String message) {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
@@ -278,6 +366,7 @@ class HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     );
   }
 
+  // Додавання води
   Future<void> addWater([int amount = 250]) async {
     try {
       final userId = await AuthService.getStoredUserId();
@@ -301,10 +390,10 @@ class HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     }
   }
 
+  // Отримання історії
   Future<void> _fetchHistory() async {
     final userId = await AuthService.getStoredUserId();
     if (userId == null) return;
-
     try {
       final res = await http.get(
         Uri.parse('${AuthService.baseUrl}/analytics/$userId'),
@@ -331,6 +420,7 @@ class HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     }
   }
 
+  // Поточні дані
   Map<String, dynamic> get _currentData {
     if (isSameDay(_selectedDate, DateTime.now())) {
       return _status ?? {};
@@ -339,10 +429,9 @@ class HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     String dateKey = _selectedDate.toIso8601String().split('T')[0];
     if (_historyData.containsKey(dateKey)) {
       final hist = _historyData[dateKey];
-      // Map history data to status structure
       return {
         'eaten': hist['calories'] ?? 0,
-        'target': _status?['target'] ?? 2000, // Use current target as fallback
+        'target': _status?['target'] ?? 2000,
         'water': hist['water'] ?? 0,
         'water_target': _status?['water_target'] ?? 2000,
         'protein': (hist['protein'] ?? 0).toInt(),
@@ -355,7 +444,6 @@ class HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
       };
     }
 
-    // Return empty/zero data if no history found
     return {
       'eaten': 0,
       'target': _status?['target'] ?? 2000,
@@ -371,11 +459,10 @@ class HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     };
   }
 
+  // Перевірка дат
   bool isSameDay(DateTime a, DateTime b) {
     return a.year == b.year && a.month == b.month && a.day == b.day;
   }
-
-  // ... existing methods ...
 
   @override
   Widget build(BuildContext context) {
@@ -390,196 +477,471 @@ class HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
 
     final currentData = _currentData;
 
-    return Container(
-      color: AppColors.backgroundDark,
-      child: AppColors.buildBackgroundWithBlurSpots(
-        child: Stack(
-          children: [
-            SafeArea(
-              child: Stack(
-                children: [
-                  RefreshIndicator(
-                    onRefresh: () async {
-                      await _fetchStatus();
-                      await _fetchHistory();
-                      await _fetchVitamins();
-                    },
-                    child: SingleChildScrollView(
-                      physics: const AlwaysScrollableScrollPhysics(),
-                      padding: const EdgeInsets.only(
-                        bottom: 100,
-                      ), // Add padding for bottom bar
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Padding(
-                            padding: const EdgeInsets.symmetric(horizontal: 25),
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                const SizedBox(height: 20),
-                                _buildHeader(),
-                              ],
-                            ),
+    return AppColors.buildBackgroundWithBlurSpots(
+      child: Stack(
+        children: [
+          SafeArea(
+            child: Stack(
+              children: [
+                RefreshIndicator(
+                  onRefresh: () async {
+                    await _fetchStatus();
+                    await _fetchHistory();
+                    await _fetchVitamins();
+                  },
+                  child: SingleChildScrollView(
+                    physics: const AlwaysScrollableScrollPhysics(),
+                    padding: const EdgeInsets.only(bottom: 100),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 25),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              const SizedBox(height: 20),
+                              _buildHeader(),
+                            ],
                           ),
-                          const SizedBox(height: 20),
-                          _buildStoriesCarousel(),
-                          const SizedBox(height: 20),
-
-                          // WEEKLY CALENDAR
-                          _buildWeeklyCalendar(),
-
-                          const SizedBox(height: 25),
-
-                          Padding(
-                            padding: const EdgeInsets.symmetric(horizontal: 25),
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text(
-                                  isSameDay(_selectedDate, DateTime.now())
-                                      ? "Сьогоднішня статистика"
-                                      : "Статистика за ${_getFullDayName(_selectedDate)}",
-                                  style: TextStyle(
-                                    color: AppColors.textWhite,
-                                    fontSize: 18,
-                                    fontWeight: FontWeight.bold,
-                                  ),
-                                ),
-                                const SizedBox(height: 15),
-                                _buildMultiChart(
-                                  currentData['eaten'] ?? 0,
-                                  currentData['target'] ?? 2000,
-                                  data: currentData, // Pass full data
-                                ),
-                                const SizedBox(height: 25),
-                                _buildWaterTracker(
-                                  currentData['water'] ?? 0,
-                                  currentData['water_target'] ?? 2000,
-                                ),
-                                const SizedBox(height: 25),
-                                _buildVitaminsSection(),
-                              ],
-                            ),
+                        ),
+                        const SizedBox(height: 10),
+                        _buildWeeklyCalendar(),
+                        const SizedBox(height: 10),
+                        Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 25),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              _buildDashboardStats(currentData),
+                              const SizedBox(height: 25),
+                              _buildWaterTracker(
+                                _dayAnimController.isAnimating
+                                    ? _displayWater.round()
+                                    : currentData['water'] ?? 0,
+                                currentData['water_target'] ?? 2000,
+                              ),
+                              const SizedBox(height: 25),
+                              _buildSleepCalculatorCard(),
+                              const SizedBox(height: 25),
+                              _buildVitaminsSection(),
+                              const SizedBox(
+                                height: 25,
+                              ), // Spacer before Stories/Sleep
+                              //_buildStoriesCarousel(),
+                              // const SizedBox(height: 25),
+                              
+                            ],
                           ),
-                          const SizedBox(height: 40), // Extra space at bottom
-                        ],
-                      ),
+                        ),
+                        const SizedBox(height: 40),
+                      ],
                     ),
                   ),
-                  Align(
-                    alignment: Alignment.topCenter,
-                    child: ConfettiWidget(
-                      confettiController: _confettiController,
-                      blastDirectionality: BlastDirectionality.explosive,
-                      shouldLoop: false,
-                    ),
+                ),
+                Align(
+                  alignment: Alignment.topCenter,
+                  child: ConfettiWidget(
+                    confettiController: _confettiController,
+                    blastDirectionality: BlastDirectionality.explosive,
+                    shouldLoop: false,
                   ),
-                ],
-              ),
+                ),
+              ],
             ),
-            // FloatingBottomNavBar removed from here
-          ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildDayIndicator(DateTime date, bool isTomorrow) {
+    if (isTomorrow) {
+      return CustomPaint(
+        painter: DottedCirclePainter(
+          color: Colors.white.withValues(alpha: 0.15),
+        ),
+        child: Center(
+          child: Text(
+            date.day.toString(),
+            style: TextStyle(
+              color: AppColors.textSecondary.withValues(alpha: 0.4),
+              fontSize: 14,
+            ),
+          ),
+        ),
+      );
+    }
+
+    bool isToday = isSameDay(date, DateTime.now());
+    int eaten = 0;
+    int target = 2000;
+
+    if (isToday) {
+      eaten = _status?['eaten'] ?? 0;
+      target = _status?['target'] ?? 2000;
+    } else {
+      String dKey = date.toIso8601String().split('T')[0];
+      final hData = _historyData[dKey];
+      if (hData != null) {
+        eaten = (hData['calories'] ?? hData['eaten'] ?? 0).toInt();
+        target = (hData['target'] ?? _status?['target'] ?? 2000).toInt();
+      }
+    }
+
+    bool completed = eaten >= target && eaten > 0;
+    bool started = eaten > 0 && eaten < target;
+
+    Color? glowColor;
+    Color dotColor = Colors.white.withValues(alpha: 0.3);
+
+    if (completed) {
+      dotColor = AppColors.primaryColor;
+      glowColor = AppColors.primaryColor.withValues(alpha: 0.5);
+    } else if (started) {
+      dotColor = Colors.orangeAccent;
+      glowColor = Colors.orangeAccent.withValues(alpha: 0.5);
+    }
+
+    return CustomPaint(
+      painter: DottedCirclePainter(color: dotColor, glowColor: glowColor),
+      child: Center(
+        child: Text(
+          date.day.toString(),
+          style: TextStyle(
+            color: AppColors.textSecondary,
+            fontSize: 14,
+            fontWeight: FontWeight.w600,
+          ),
         ),
       ),
     );
   }
 
   Widget _buildWeeklyCalendar() {
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 20),
-      child: Row(
-        children: List.generate(7, (index) {
-          final date = DateTime.now().subtract(Duration(days: 6 - index));
-          final isSelected = isSameDay(date, _selectedDate);
+    final now = DateTime.now();
+    final tomorrow = DateTime(now.year, now.month, now.day + 1);
 
-          return Expanded(
-            child: GestureDetector(
-              onTap: () {
-                setState(() {
-                  _selectedDate = date;
-                });
-              },
-              child: Container(
-                margin: EdgeInsets.only(right: index == 6 ? 0 : 6),
-                height: 65,
-                decoration: BoxDecoration(
-                  color: isSelected
-                      ? AppColors.primaryColor
-                      : const Color(0xFF1C1C1E),
-                  borderRadius: BorderRadius.circular(14),
-                  border: isSelected
-                      ? null
-                      : Border.all(color: Colors.white.withValues(alpha: 0.1)),
-                ),
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                  children: [
-                    Text(
-                      _getDayName(date),
-                      style: TextStyle(
-                        color: isSelected
-                            ? Colors.black
-                            : AppColors.textSecondary,
-                        fontSize: 11,
-                        fontWeight: FontWeight.w500,
+    final dates = List.generate(
+      7,
+      (index) => index < 6 ? now.subtract(Duration(days: 5 - index)) : tomorrow,
+    );
+
+    int selectedIndex = dates.indexWhere((d) => isSameDay(d, _selectedDate));
+    if (selectedIndex == -1) selectedIndex = 5;
+
+    return Container(
+      height: 85,
+      padding: const EdgeInsets.symmetric(horizontal: 20),
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          final slotWidth = constraints.maxWidth / 7;
+
+          return Stack(
+            clipBehavior: Clip.none,
+            children: [
+              Row(
+                children: List.generate(7, (index) {
+                  final date = dates[index];
+                  final isTomorrow = isSameDay(date, tomorrow);
+                  final isSelected = index == selectedIndex;
+
+                  return Expanded(
+                    child: GestureDetector(
+                      behavior: HitTestBehavior.opaque,
+                      onTap: isTomorrow ? null : () => _animateToDay(date),
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Text(
+                            _getDayLetter(date),
+                            style: TextStyle(
+                              color: isTomorrow && !isSelected
+                                  ? AppColors.textSecondary.withValues(
+                                      alpha: 0.4,
+                                    )
+                                  : AppColors.textSecondary,
+                              fontSize: 12,
+                              fontWeight: FontWeight.w500,
+                            ),
+                          ),
+                          const SizedBox(height: 8),
+                          SizedBox(
+                            width: 36,
+                            height: 36,
+                            child: AnimatedOpacity(
+                              duration: const Duration(milliseconds: 200),
+                              opacity: isSelected ? 0.0 : 1.0,
+                              child: _buildDayIndicator(date, isTomorrow),
+                            ),
+                          ),
+                        ],
                       ),
                     ),
-                    Container(
-                      width: 28,
-                      height: 28,
-                      decoration: BoxDecoration(
-                        color: isSelected ? Colors.white : Colors.transparent,
-                        shape: BoxShape.circle,
-                        border: isSelected
-                            ? null
-                            : Border.all(
-                                color: Colors.white.withValues(alpha: 0.1),
-                              ),
-                      ),
-                      alignment: Alignment.center,
-                      child: Text(
-                        date.day.toString().padLeft(2, '0'),
-                        style: TextStyle(
-                          color: isSelected
-                              ? Colors.black
-                              : AppColors.textWhite,
-                          fontSize: 13,
-                          fontWeight: FontWeight.bold,
+                  );
+                }),
+              ),
+
+              AnimatedPositioned(
+                duration: const Duration(milliseconds: 300),
+                curve: Curves.easeOutCubic,
+                left: selectedIndex * slotWidth + (slotWidth - 36) / 2,
+                top: 0,
+                bottom: 0,
+                width: 36,
+                child: IgnorePointer(
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      const SizedBox(height: 14),
+                      const SizedBox(height: 8),
+                      Container(
+                        width: 36,
+                        height: 36,
+                        decoration: const BoxDecoration(
+                          color: Colors.white,
+                          shape: BoxShape.circle,
+                        ),
+                        child: Center(
+                          child: Text(
+                            dates[selectedIndex].day.toString(),
+                            style: const TextStyle(
+                              color: Colors.black,
+                              fontWeight: FontWeight.bold,
+                              fontSize: 16,
+                            ),
+                          ),
                         ),
                       ),
-                    ),
-                  ],
+                    ],
+                  ),
                 ),
               ),
-            ),
+            ],
           );
-        }),
+        },
       ),
     );
   }
 
-  String _getDayName(DateTime date) {
-    const days = ['Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб', 'Нд'];
-    return days[date.weekday - 1];
+  String _getDayLetter(DateTime date) {
+    const daysUA = ['П', 'В', 'С', 'Ч', 'П', 'С', 'Н'];
+    return daysUA[date.weekday - 1];
   }
 
-  String _getFullDayName(DateTime date) {
-    const days = [
-      'Понеділок',
-      'Вівторок',
-      'Середу',
-      'Четвер',
-      'Пʼятницю',
-      'Суботу',
-      'Неділю',
+  void _initDisplayValues(Map<String, dynamic> data) {
+    if (!_displayValuesInitialized) {
+      _displayEaten = (data['eaten'] ?? 0).toDouble();
+      _displayProtein = (data['protein'] ?? 0).toDouble();
+      _displayFat = (data['fat'] ?? 0).toDouble();
+      _displayCarbs = (data['carbs'] ?? 0).toDouble();
+      _displayWater = (data['water'] ?? 0).toDouble();
+      _toEaten = _displayEaten;
+      _toProtein = _displayProtein;
+      _toFat = _displayFat;
+      _toCarbs = _displayCarbs;
+      _toWater = _displayWater;
+      _displayValuesInitialized = true;
+    }
+  }
+
+  void _animateToDay(DateTime newDate) {
+    _fromEaten = _displayEaten;
+    _fromProtein = _displayProtein;
+    _fromFat = _displayFat;
+    _fromCarbs = _displayCarbs;
+    _fromWater = _displayWater;
+
+    _selectedDate = newDate;
+    final newData = _currentData;
+
+    _toEaten = (newData['eaten'] ?? 0).toDouble();
+    _toProtein = (newData['protein'] ?? 0).toDouble();
+    _toFat = (newData['fat'] ?? 0).toDouble();
+    _toCarbs = (newData['carbs'] ?? 0).toDouble();
+    _toWater = (newData['water'] ?? 0).toDouble();
+
+    _dayAnimController.reset();
+    _dayAnimController.forward();
+  }
+
+  Widget _buildDashboardStats(Map<String, dynamic> data) {
+    _initDisplayValues(data);
+
+    if (!_dayAnimController.isAnimating) {
+      _displayEaten = (data['eaten'] ?? 0).toDouble();
+      _displayProtein = (data['protein'] ?? 0).toDouble();
+      _displayFat = (data['fat'] ?? 0).toDouble();
+      _displayCarbs = (data['carbs'] ?? 0).toDouble();
+      _displayWater = (data['water'] ?? 0).toDouble();
+    }
+
+    int eaten = _displayEaten.round();
+    int target = data['target'] ?? 2000;
+    int remaining = target - eaten;
+
+    double p = _displayProtein;
+    double f = _displayFat;
+    double c = _displayCarbs;
+    int targetP = data['target_p'] ?? 150;
+    int targetF = data['target_f'] ?? 70;
+    int targetC = data['target_c'] ?? 250;
+
+    String remainingText = "Залишилось $remaining";
+    if (eaten >= target) {
+      remainingText = "Ціль виконано!";
+    }
+
+    return Column(
+      children: [
+        SizedBox(
+          height: 160,
+          child: Stack(
+            alignment: Alignment.bottomCenter,
+            children: [
+              CustomPaint(
+                size: const Size(300, 300),
+                painter: CalorieArcPainter(
+                  current: eaten.toDouble(),
+                  target: target.toDouble(),
+                  startColor: AppColors.primaryColor,
+                  endColor: AppColors.primaryColor.withValues(alpha: 0.5),
+                ),
+              ),
+              Positioned(
+                bottom: 20,
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      isSameDay(_selectedDate, DateTime.now())
+                          ? "Сьогодні ${_selectedDate.day} ${_getMonthName(_selectedDate.month)}"
+                          : "${_selectedDate.day} ${_getMonthName(_selectedDate.month)}",
+                      style: TextStyle(
+                        color: AppColors.textSecondary,
+                        fontSize: 12,
+                      ),
+                    ),
+                    const SizedBox(height: 5),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      crossAxisAlignment: CrossAxisAlignment.center,
+                      children: [
+                        Text(
+                          "$eaten",
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 38,
+                            fontWeight: FontWeight.bold,
+                            height: 1.0,
+                          ),
+                        ),
+                        const SizedBox(width: 4),
+                        Text(
+                          "ккал",
+                          style: TextStyle(
+                            color: AppColors.textSecondary,
+                            fontSize: 13,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+
+        Text(
+          remainingText,
+          style: TextStyle(
+            color: AppColors.textSecondary,
+            fontSize: 14,
+            fontWeight: FontWeight.bold,
+          ),
+        ),
+
+        const SizedBox(height: 25),
+
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 20),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+            children: [
+              _buildMacroCircle("Білки", p, targetP, Colors.blueAccent),
+              _buildMacroCircle("Вугл", c, targetC, Colors.purpleAccent),
+              _buildMacroCircle("Жири", f, targetF, Colors.orangeAccent),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  String _getMonthName(int month) {
+    const months = [
+      'Січня',
+      'Лютого',
+      'Березня',
+      'Квітня',
+      'Травня',
+      'Червня',
+      'Липня',
+      'Серпня',
+      'Вересня',
+      'Жовтня',
+      'Листопада',
+      'Грудня',
     ];
-    return days[date.weekday - 1];
+    return months[month - 1];
   }
 
-  // ========== Daily Weight Check Methods ==========
+  Widget _buildMacroCircle(
+    String label,
+    double current,
+    int target,
+    Color color,
+  ) {
+    return Column(
+      children: [
+        SizedBox(
+          width: 50,
+          height: 50,
+          child: CustomPaint(
+            painter: MacroRingPainter(
+              percent: (target > 0 ? current / target : 0.0).clamp(0.0, 1.0),
+              color: color,
+            ),
+            child: Center(
+              child: Text(
+                "${current.toInt()}",
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontWeight: FontWeight.bold,
+                  fontSize: 14,
+                ),
+              ),
+            ),
+          ),
+        ),
+        const SizedBox(height: 8),
+        Text(
+          label,
+          style: TextStyle(color: AppColors.textSecondary, fontSize: 12),
+        ),
+        Text(
+          "$targetг",
+          style: TextStyle(
+            color: AppColors.textSecondary.withValues(alpha: 0.5),
+            fontSize: 10,
+          ),
+        ),
+      ],
+    );
+  }
 
-  /// Перевіряє чи це перший запуск додатка за сьогоднішній день
+  // Перевіряємо чи це перший запуск додатка за сьогоднішній день
   Future<bool> _checkIfFirstLaunchToday() async {
     final prefs = await SharedPreferences.getInstance();
     final userId = await AuthService.getStoredUserId();
@@ -592,7 +954,7 @@ class HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     return lastCheckDate != today;
   }
 
-  /// Зберігає поточну дату як день коли було виконано перевірку ваги
+  // Зберігаємо поточну дату як день коли було виконано перевірку ваги
   Future<void> _markTodayAsChecked() async {
     final prefs = await SharedPreferences.getInstance();
     final userId = await AuthService.getStoredUserId();
@@ -603,9 +965,8 @@ class HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     await prefs.setString(key, today);
   }
 
-  /// Перевіряє і показує діалог якщо потрібно
+  // Перевіряємо і показуємо діалог якщо потрібно
   Future<void> _checkAndShowDailyWeightDialog() async {
-    // Невелика затримка перед показом діалогу
     await Future.delayed(const Duration(milliseconds: 500));
 
     final bool isFirstLaunch = await _checkIfFirstLaunchToday();
@@ -614,7 +975,7 @@ class HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     }
   }
 
-  /// Показує діалогове вікно з питанням про зміну ваги
+  // Показуємо діалогове вікно з питанням про зміну ваги
   void _showDailyWeightCheckDialog() {
     showDialog(
       context: context,
@@ -653,7 +1014,6 @@ class HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
           Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              // Кнопка "Внести зміни"
               ElevatedButton(
                 onPressed: () {
                   Navigator.pop(dialogContext);
@@ -674,7 +1034,6 @@ class HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                 ),
               ),
               const SizedBox(height: 10),
-              // Кнопка "Я введу це пізніше"
               TextButton(
                 onPressed: () {
                   Navigator.pop(dialogContext);
@@ -696,6 +1055,7 @@ class HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     );
   }
 
+  // Показуємо колесо вибору ваги
   void _showWeightWheelPicker() async {
     double currentWeight = 70.0;
     final userId = await AuthService.getStoredUserId();
@@ -727,123 +1087,198 @@ class HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
             if (_status != null) _status!['weight'] = newWeight;
           });
           _showSuccessNotification("Вагу оновлено: $newWeight кг! 🎯");
-          _fetchStatus(); // Ensure fresh sync
+          _fetchStatus();
         },
       ),
     );
   }
 
+  Map<String, dynamic>? _getNextVitaminSchedule() {
+    if (_vitamins.isEmpty) return null;
+
+    final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+    final tomorrow = today.add(const Duration(days: 1));
+
+    List<Map<String, dynamic>> upcomingDoses = [];
+
+    for (final day in [today, tomorrow]) {
+      for (final vitamin in _vitamins) {
+        bool isActive = false;
+        final freqType = vitamin['frequency_type'];
+        final startDateStr = vitamin['start_date'];
+        DateTime? startDate;
+        if (startDateStr != null) {
+          try {
+            startDate = DateTime.parse(startDateStr);
+            startDate = DateTime(
+              startDate.year,
+              startDate.month,
+              startDate.day,
+            );
+          } catch (_) {}
+        }
+
+        if (startDate != null && day.isBefore(startDate)) {
+          continue;
+        }
+
+        if (freqType == 'every_day' || freqType == null) {
+          isActive = true;
+        } else if (freqType == 'week_days') {
+          final daysStr = vitamin['frequency_data']?.toString() ?? '';
+          final days = daysStr
+              .split(',')
+              .map((e) => int.tryParse(e))
+              .where((e) => e != null)
+              .toSet();
+          if (days.contains(day.weekday)) {
+            isActive = true;
+          }
+        } else if (freqType == 'interval') {
+          final interval =
+              int.tryParse(vitamin['frequency_data']?.toString() ?? '1') ?? 1;
+          if (startDate != null) {
+            final diff = day.difference(startDate).inDays;
+            if (diff >= 0 && diff % interval == 0) {
+              isActive = true;
+            }
+          }
+        }
+
+        if (!isActive) continue;
+
+        final schedules = vitamin['schedules'] as List?;
+        if (schedules == null || schedules.isEmpty) continue;
+
+        for (final s in schedules) {
+          final timeStr = s['time']?.toString() ?? '09:00';
+          final parts = timeStr.split(':');
+          final h = int.tryParse(parts[0]) ?? 9;
+          final m = int.tryParse(parts[1]) ?? 0;
+          final doseTime = DateTime(day.year, day.month, day.day, h, m);
+
+          if (doseTime.isAfter(now)) {
+            upcomingDoses.add({
+              'vitamin': vitamin,
+              'time': doseTime,
+              'dose': s['dose']?.toString() ?? '',
+            });
+          }
+        }
+      }
+    }
+
+    if (upcomingDoses.isEmpty) {
+      return null;
+    }
+
+    upcomingDoses.sort(
+      (a, b) => (a['time'] as DateTime).compareTo(b['time'] as DateTime),
+    );
+    return upcomingDoses.first;
+  }
+
   Widget _buildVitaminsSection() {
-    // Hide vitamins for past dates as we don't have historical data for them yet
-    if (!isSameDay(_selectedDate, DateTime.now()))
-      return const SizedBox.shrink();
-
-    if (_vitamins.isEmpty) return const SizedBox.shrink();
-
-    return Container(
-      decoration: BoxDecoration(
-        color: AppColors.glassCardColor,
-        borderRadius: BorderRadius.circular(28),
-        border: Border.all(color: AppColors.glassCardColor),
+    // Gradient decoration for consistent styling
+    final gradientDecoration = BoxDecoration(
+      gradient: LinearGradient(
+        colors: [
+          const Color(0xFF134E5E), // Dark Teal
+          const Color(0xFF71B280), // Light Green
+        ],
+        begin: Alignment.topLeft,
+        end: Alignment.bottomRight,
       ),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Padding(
-            padding: const EdgeInsets.fromLTRB(20, 15, 20, 10),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Text(
-                  "Мої вітаміни",
-                  style: TextStyle(
-                    color: AppColors.textWhite,
-                    fontSize: 18,
-                    fontWeight: FontWeight.bold,
+      borderRadius: BorderRadius.circular(24),
+      boxShadow: [
+        BoxShadow(
+          color: const Color(0xFF134E5E).withOpacity(0.4),
+          blurRadius: 8,
+          offset: const Offset(0, 4),
+        ),
+      ],
+    );
+
+    if (_vitamins.isEmpty) {
+      return GestureDetector(
+        onTap: () {
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (context) => AllVitaminsScreen(
+                vitamins: _vitamins,
+                onEdit: _editVitamin,
+                onDelete: _deleteVitamin,
+              ),
+            ),
+          );
+        },
+        child: Container(
+          width: double.infinity,
+          padding: const EdgeInsets.all(20),
+          decoration: gradientDecoration,
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Row(
+                children: [
+                  const Icon(
+                    Icons.medication,
+                    color: Colors.white,
+                    size: 20,
                   ),
-                ),
-                Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 10,
-                    vertical: 4,
-                  ),
-                  decoration: BoxDecoration(
-                    color: Colors.orangeAccent.withValues(alpha: 0.2),
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  child: Text(
-                    "${_vitamins.length}",
-                    style: const TextStyle(
-                      color: Colors.orangeAccent,
-                      fontSize: 14,
+                  const SizedBox(width: 8),
+                  const Text(
+                    "Мої вітаміни",
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontSize: 16,
                       fontWeight: FontWeight.bold,
                     ),
                   ),
-                ),
-              ],
-            ),
-          ),
-          Divider(color: AppColors.cardColor, height: 1),
-          ListView.separated(
-            shrinkWrap: true,
-            physics: const NeverScrollableScrollPhysics(),
-            padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 15),
-            itemCount: _showAllVitamins
-                ? _vitamins.length
-                : (_vitamins.length > 3 ? 3 : _vitamins.length),
-            separatorBuilder: (context, index) => const SizedBox(height: 8),
-            itemBuilder: (context, index) {
-              final vitamin = _vitamins[index];
-              return _buildVitaminCard(vitamin);
-            },
-          ),
-          if (_vitamins.length > 3)
-            InkWell(
-              onTap: () {
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (context) => AllVitaminsScreen(
-                      vitamins: _vitamins,
-                      onEdit: _editVitamin,
-                      onDelete: _deleteVitamin,
+                ],
+              ),
+              Row(
+                children: [
+                  Text(
+                    "Додати",
+                    style: TextStyle(
+                      color: Colors.white.withOpacity(0.9),
+                      fontSize: 12,
+                      fontWeight: FontWeight.w600,
                     ),
                   ),
-                );
-              },
-              child: Container(
-                padding: const EdgeInsets.symmetric(vertical: 12),
-                decoration: BoxDecoration(
-                  border: Border(top: BorderSide(color: AppColors.cardColor)),
-                ),
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Text(
-                      "Показати більше",
-                      style: TextStyle(
-                        color: AppColors.primaryColor,
-                        fontSize: 14,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                    const SizedBox(width: 5),
-                    Icon(
-                      Icons.arrow_forward,
-                      color: AppColors.primaryColor,
-                      size: 18,
-                    ),
-                  ],
-                ),
+                  const SizedBox(width: 4),
+                  Icon(
+                    Icons.add_circle_outline,
+                    color: Colors.white.withOpacity(0.9),
+                    size: 16,
+                  ),
+                ],
               ),
-            ),
-        ],
-      ),
-    );
-  }
+            ],
+          ),
+        ),
+      );
+    }
 
-  Widget _buildVitaminCard(dynamic vitamin) {
+    final nextUnknown = _getNextVitaminSchedule();
+    final nextDose =
+        nextUnknown ??
+        {
+          'vitamin': _vitamins.first,
+          'time': DateTime.now(),
+          'dose': (_vitamins.first['schedules'] as List?)?.first['dose'] ?? '',
+        };
+
+    final vitamin = nextDose['vitamin'];
+    final timeDate = nextDose['time'] as DateTime;
+    final isToday = isSameDay(timeDate, DateTime.now());
+    final timeStr =
+        "${timeDate.hour.toString().padLeft(2, '0')}:${timeDate.minute.toString().padLeft(2, '0')}";
+    final dayStr = isToday ? "Сьогодні" : "Завтра";
+
     IconData icon;
     switch (vitamin['type']) {
       case 'pill':
@@ -870,150 +1305,223 @@ class HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
 
     return GestureDetector(
       onTap: () {
-        _editVitamin(vitamin);
-      },
-      onLongPress: () {
-        showModalBottomSheet(
-          context: context,
-          backgroundColor: Colors.transparent,
-          builder: (ctx) => Container(
-            decoration: BoxDecoration(
-              color: AppColors.backgroundDark,
-              borderRadius: const BorderRadius.vertical(
-                top: Radius.circular(20),
-              ),
-              border: Border.all(color: Colors.white10),
-            ),
-            padding: const EdgeInsets.all(20),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Text(
-                  vitamin['name'] ?? "Vitamin",
-                  style: TextStyle(
-                    color: AppColors.textWhite,
-                    fontSize: 20,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-                const SizedBox(height: 20),
-                ListTile(
-                  leading: const Icon(Icons.edit, color: Colors.blueAccent),
-                  title: const Text(
-                    "Редагувати",
-                    style: TextStyle(color: Colors.blueAccent),
-                  ),
-                  onTap: () {
-                    Navigator.pop(ctx);
-                    _editVitamin(vitamin);
-                  },
-                ),
-                ListTile(
-                  leading: const Icon(Icons.delete, color: Colors.redAccent),
-                  title: const Text(
-                    "Видалити",
-                    style: TextStyle(color: Colors.redAccent),
-                  ),
-                  onTap: () {
-                    Navigator.pop(ctx);
-                    if (vitamin['id'] != null) {
-                      _deleteVitamin(vitamin['id'].toString());
-                    }
-                  },
-                ),
-              ],
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (context) => AllVitaminsScreen(
+              vitamins: _vitamins,
+              onEdit: _editVitamin,
+              onDelete: _deleteVitamin,
             ),
           ),
         );
       },
       child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 15, vertical: 12),
-        decoration: BoxDecoration(
-          color: AppColors.glassCardColor,
-          borderRadius: BorderRadius.circular(15),
-          border: Border.all(color: AppColors.glassCardColor),
-        ),
-        child: Row(
+        width: double.infinity,
+        decoration: gradientDecoration,
+        // Removed padding here to allow footer to be edge-to-edge
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Container(
-              padding: const EdgeInsets.all(10),
-              decoration: BoxDecoration(
-                color: Colors.orangeAccent.withValues(alpha: 0.2),
-                shape: BoxShape.circle,
-              ),
-              child: Icon(icon, color: Colors.orangeAccent, size: 24),
-            ),
-            const SizedBox(width: 15),
-            Expanded(
+            Padding(
+              padding: const EdgeInsets.all(
+                20,
+              ), // Padding moved here for content
               child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      Flexible(
+                      Row(
+                        children: [
+                          const Icon(
+                            Icons.medication,
+                            color: Colors.white,
+                            size: 20,
+                          ),
+                          const SizedBox(width: 8),
+                          const Text(
+                            "Мої вітаміни",
+                            style: TextStyle(
+                              color: Colors.white,
+                              fontSize: 16,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ],
+                      ),
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 8,
+                          vertical: 2,
+                        ),
+                        decoration: BoxDecoration(
+                          color: Colors.white.withOpacity(0.2),
+                          borderRadius: BorderRadius.circular(10),
+                        ),
                         child: Text(
-                          vitamin['name'] ?? "No Name",
-                          style: TextStyle(
-                            color: AppColors.textWhite,
-                            fontSize: 16,
+                          "${_vitamins.length}",
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 12,
                             fontWeight: FontWeight.bold,
                           ),
-                          overflow: TextOverflow.ellipsis,
                         ),
                       ),
-                      if (vitamin['brand'] != null &&
-                          vitamin['brand'].toString().isNotEmpty) ...[
-                        const SizedBox(width: 4),
-                        Flexible(
-                          child: Text(
-                            "(${vitamin['brand']})",
-                            style: TextStyle(
-                              color: AppColors.textSecondary,
-                              fontSize: 14,
-                            ),
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                        ),
-                      ],
                     ],
                   ),
-                  const SizedBox(height: 2),
-                  if (vitamin['description'] != null &&
-                      vitamin['description'].toString().isNotEmpty)
-                    Text(
-                      vitamin['description'].toString().length > 30
-                          ? '${vitamin['description'].toString().substring(0, 30)}...'
-                          : vitamin['description'].toString(),
-                      style: TextStyle(
-                        color: AppColors.textSecondary,
-                        fontSize: 12,
+                  const SizedBox(height: 12),
+                  Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Container(
+                        width: 40,
+                        height: 40,
+                        decoration: BoxDecoration(
+                          color: Colors.white.withOpacity(0.2),
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        child: Icon(icon, color: Colors.white, size: 24),
                       ),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                  if (vitamin['schedules'] != null &&
-                      (vitamin['schedules'] as List).isNotEmpty)
-                    Row(
-                      children: [
-                        Icon(
-                          Icons.medication_liquid,
-                          color: AppColors.textSecondary,
-                          size: 12,
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Row(
+                              children: [
+                                Flexible(
+                                  child: Text(
+                                    vitamin['name'] ?? "Vitamin",
+                                    style: const TextStyle(
+                                      color: Colors.white,
+                                      fontSize: 16,
+                                      fontWeight: FontWeight.bold,
+                                    ),
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
+                                ),
+                                if (vitamin['brand'] != null &&
+                                    vitamin['brand'].toString().isNotEmpty) ...[
+                                  const SizedBox(width: 6),
+                                  Flexible(
+                                    child: Text(
+                                      "(${vitamin['brand']})",
+                                      style: TextStyle(
+                                        color: Colors.white.withOpacity(0.7),
+                                        fontSize: 12,
+                                      ),
+                                      overflow: TextOverflow.ellipsis,
+                                    ),
+                                  ),
+                                ],
+                              ],
+                            ),
+                            const SizedBox(height: 4),
+                            Row(
+                              children: [
+                                const Icon(
+                                  Icons.access_time_filled,
+                                  color: Colors.white,
+                                  size: 12,
+                                ),
+                                const SizedBox(width: 4),
+                                Text(
+                                  "$dayStr $timeStr",
+                                  style: const TextStyle(
+                                    color: Colors.white,
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.w600,
+                                  ),
+                                ),
+                                const SizedBox(width: 10),
+                                Container(
+                                  width: 1,
+                                  height: 10,
+                                  color: Colors.white.withOpacity(0.5),
+                                ),
+                                const SizedBox(width: 10),
+                                Text(
+                                  nextDose['dose']?.toString() ?? "",
+                                  style: TextStyle(
+                                    color: Colors.white.withOpacity(0.9),
+                                    fontSize: 12,
+                                  ),
+                                ),
+                              ],
+                            ),
+                            if (vitamin['description'] != null &&
+                                vitamin['description']
+                                    .toString()
+                                    .isNotEmpty) ...[
+                              const SizedBox(height: 8),
+                              Text(
+                                vitamin['description'].toString(),
+                                style: TextStyle(
+                                  color: Colors.white.withOpacity(0.8),
+                                  fontSize: 12,
+                                ),
+                                maxLines: 2,
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            ],
+                          ],
                         ),
-                        const SizedBox(width: 4),
-                        Text(
-                          vitamin['schedules'][0]['dose'] ?? 'Не вказано',
-                          style: TextStyle(
-                            color: AppColors.textSecondary,
-                            fontSize: 11,
-                          ),
-                        ),
-                      ],
-                    ),
+                      ),
+                    ],
+                  ),
                 ],
               ),
             ),
-            Icon(Icons.chevron_right, color: AppColors.textSecondary, size: 20),
+            InkWell(
+              onTap: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => AllVitaminsScreen(
+                      vitamins: _vitamins,
+                      onEdit: _editVitamin,
+                      onDelete: _deleteVitamin,
+                    ),
+                  ),
+                );
+              },
+              child: Container(
+                width: double.infinity,
+                padding: const EdgeInsets.symmetric(vertical: 12),
+                decoration: BoxDecoration(
+                  color: Colors.black.withOpacity(
+                    0.2,
+                  ), // Slightly darker for contrast
+                  borderRadius: const BorderRadius.vertical(
+                    bottom: Radius.circular(24),
+                  ),
+                  border: Border(
+                    top: BorderSide(color: Colors.white.withOpacity(0.1)),
+                  ),
+                ),
+                child: const Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Text(
+                      "Керувати вітамінами",
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontSize: 14,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                    SizedBox(width: 8),
+                    Icon(
+                      Icons.arrow_forward_ios,
+                      color: Colors.white,
+                      size: 12,
+                    ),
+                  ],
+                ),
+              ),
+            ),
           ],
         ),
       ),
@@ -1069,6 +1577,9 @@ class HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   }
 
   Widget _buildStoriesCarousel() {
+    // Stories hidden as per user request
+    return const SizedBox.shrink();
+    /*
     final stories = _status?['stories'] as List? ?? [];
     if (stories.isEmpty) return const SizedBox.shrink();
     return Column(
@@ -1086,8 +1597,12 @@ class HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
         ),
       ],
     );
+    */
   }
 
+  // ... (keeping _buildStoryCard helper if needed for future, or leaving it since it's used by commented out code)
+
+  /*
   Widget _buildStoryCard(dynamic story, int index, List allStories) {
     return GestureDetector(
       onTap: () {
@@ -1152,6 +1667,269 @@ class HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
       ),
     );
   }
+  */
+
+  Widget _buildSleepCalculatorCard() {
+    return Column(
+      children: [
+        _buildSleepCard(),
+        const SizedBox(height: 20),
+        _buildWeightCard(),
+      ],
+    );
+  }
+
+  Widget _buildSleepCard() {
+    return GestureDetector(
+      onTap: () => Navigator.push(
+        context,
+        MaterialPageRoute(builder: (context) => const SleepCalculatorScreen()),
+      ),
+      child: Container(
+        width: double.infinity,
+        height: 100,
+        decoration: BoxDecoration(
+          // Gradient background for "Sleep"
+          gradient: LinearGradient(
+            colors: [
+              const Color(0xFF2C0E56), // Deep purple
+              const Color(0xFF5D2E8C), // Light purple
+            ],
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+          ),
+          borderRadius: BorderRadius.circular(24),
+          boxShadow: [
+            BoxShadow(
+              color: const Color(0xFF2C0E56).withOpacity(0.4),
+              blurRadius: 10,
+              offset: const Offset(0, 4),
+            ),
+          ],
+        ),
+        child: Stack(
+          children: [
+            Positioned(
+              right: -10,
+              top: -10,
+              child: Icon(
+                Icons.nights_stay_rounded,
+                size: 80,
+                color: Colors.white.withOpacity(0.05),
+              ),
+            ),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 15),
+              child: Row(
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(10),
+                    decoration: BoxDecoration(
+                      color: Colors.white.withOpacity(0.15),
+                      shape: BoxShape.circle,
+                    ),
+                    child: const Icon(
+                      Icons.bedtime_rounded,
+                      color: Colors.white,
+                      size: 24,
+                    ),
+                  ),
+                  const SizedBox(width: 15),
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      const Text(
+                        "Калькулятор сну",
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontSize: 16,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        "Розрахувати ідеальний час",
+                        style: TextStyle(
+                          color: Colors.white.withOpacity(0.7),
+                          fontSize: 12,
+                        ),
+                      ),
+                    ],
+                  ),
+                  const Spacer(),
+                  const Icon(
+                    Icons.arrow_forward_ios_rounded,
+                    color: Colors.white,
+                    size: 16,
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildWeightCard() {
+    double currentWeight = 0;
+    if (_status != null) {
+      currentWeight = double.tryParse(_status!['weight'].toString()) ?? 0;
+    }
+
+    return GestureDetector(
+      onTap: () => Navigator.push(
+        context,
+        MaterialPageRoute(builder: (context) => const WeightTrackerScreen()),
+      ),
+      child: Container(
+        width: double.infinity,
+        height: 140, // Taller to fit graph
+        decoration: BoxDecoration(
+          // Gradient background for "Weight"
+          gradient: LinearGradient(
+            colors: [
+              const Color(0xFF0F2027), // Dark Blue
+              const Color(0xFF203A43), // Teal Blue
+              const Color(0xFF2C5364), // Lighter Blue
+            ],
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+          ),
+          borderRadius: BorderRadius.circular(24),
+          boxShadow: [
+            BoxShadow(
+              color: const Color(0xFF0F2027).withOpacity(0.4),
+              blurRadius: 10,
+              offset: const Offset(0, 4),
+            ),
+          ],
+        ),
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(24),
+          child: Stack(
+            children: [
+              // Background Graph
+              if (_weightHistory.isNotEmpty && _weightHistory.length > 1)
+                Positioned.fill(
+                  child: Padding(
+                    padding: const EdgeInsets.only(
+                      top: 40,
+                    ), // Push graph down a bit
+                    child: Opacity(
+                      opacity: 0.3, // Slightly more visible on dark bg
+                      child: LineChart(
+                        LineChartData(
+                          gridData: FlGridData(show: false),
+                          titlesData: FlTitlesData(show: false),
+                          borderData: FlBorderData(show: false),
+                          minX: _weightHistory.first.x,
+                          maxX: _weightHistory.last.x,
+                          minY: _weightHistory.map((e) => e.y).reduce(min) - 1,
+                          maxY: _weightHistory.map((e) => e.y).reduce(max) + 1,
+                          lineTouchData: const LineTouchData(
+                            enabled: false,
+                          ), // Disable touch interactions
+                          lineBarsData: [
+                            LineChartBarData(
+                              spots: _weightHistory,
+                              isCurved: true,
+                              color: Colors
+                                  .lightBlueAccent, // Lighter color for graph
+                              barWidth: 3,
+                              isStrokeCapRound: true,
+                              dotData: FlDotData(show: false),
+                              belowBarData: BarAreaData(
+                                show: true,
+                                color: Colors.lightBlueAccent.withOpacity(0.2),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+
+              Padding(
+                padding: const EdgeInsets.all(20),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Row(
+                          children: [
+                            const Icon(
+                              Icons.monitor_weight_rounded,
+                              color: Colors.white,
+                              size: 20,
+                            ),
+                            const SizedBox(width: 10),
+                            const Text(
+                              "Вага",
+                              style: TextStyle(
+                                color: Colors.white,
+                                fontWeight: FontWeight.bold,
+                                fontSize: 16,
+                              ),
+                            ),
+                          ],
+                        ),
+                        Text(
+                          "$currentWeight кг",
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 22,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ],
+                    ),
+                    const Spacer(),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Text(
+                          _weightHistory.isNotEmpty
+                              ? "Останні оновлення"
+                              : "Даних ще немає",
+                          style: TextStyle(
+                            color: Colors.white.withOpacity(0.7),
+                            fontSize: 12,
+                          ),
+                        ),
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 10,
+                            vertical: 5,
+                          ),
+                          decoration: BoxDecoration(
+                            color: Colors.white.withOpacity(0.1),
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          child: const Text(
+                            "Детальніше",
+                            style: TextStyle(
+                              color: Colors.white,
+                              fontSize: 10,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
 
   Widget _buildHeader() {
     return Row(
@@ -1179,414 +1957,172 @@ class HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
             ),
           ],
         ),
-        Row(
-          children: [
-            IconButton(
-              icon: const Icon(
-                Icons.notifications_active,
-                color: Colors.redAccent,
-              ),
-              onPressed: () async {
-                await NotificationService().requestPermissions();
-                await NotificationService().showInstantNotification(
-                  "Тест",
-                  "Це тестове сповіщення! 🔔",
-                );
-              },
-            ),
-          ],
-        ),
       ],
     );
   }
 
-  Widget _buildStyledCard({required Widget child}) => Container(
-    width: double.infinity,
-    padding: const EdgeInsets.all(20),
-    decoration: BoxDecoration(
-      color: AppColors.glassCardColor,
-      borderRadius: BorderRadius.circular(28),
-      border: Border.all(color: AppColors.glassCardColor),
-    ),
-    child: child,
-  );
+  Widget _buildWaterTracker(int current, int target) {
+    double progress = (target > 0 ? current / target : 0.0).clamp(0.0, 1.0);
+    int percentage = (progress * 100).toInt();
 
-  Widget _buildMultiChart(int eaten, int target, {Map<String, dynamic>? data}) {
-    final source = data ?? _status ?? {};
-    double p = (source['protein'] ?? 0).toDouble();
-    double f = (source['fat'] ?? 0).toDouble();
-    double c = (source['carbs'] ?? 0).toDouble();
-    int targetP = source['target_p'] ?? 120;
-    int targetF = source['target_f'] ?? 70;
-    int targetC = source['target_c'] ?? 250;
-    int targetCals = source['target'] ?? 2000;
-    int eatenCals = source['eaten'] ?? 0;
-
-    // 🎨 ЛОГУВАННЯ ВІДОБРАЖУВАНИХ ДАНИХ
-    print('\n🎨 HOME SCREEN: Відображення макросів');
-    print('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
-    print('Спожито: $eatenCals ккал');
-    print('Ціль: $targetCals ккал');
-    print('Макроси (спожито):');
-    print('  • Білки: ${p.toInt()}г');
-    print('  • Жири: ${f.toInt()}г');
-    print('  • Вуглеводи: ${c.toInt()}г');
-    print('Макроси (ціль):');
-    print('  • Білки: ${targetP}г');
-    print('  • Жири: ${targetF}г');
-    print('  • Вуглеводи: ${targetC}г');
-    print('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n');
-
-    bool goalReached = eatenCals >= targetCals;
-    int remaining = targetCals - eatenCals;
-    String goalText = _status?['goal'] == "lose"
-        ? "Схуднення"
-        : _status?['goal'] == "gain"
-        ? "Набір маси"
-        : "Підтримка ваги";
-    IconData goalIcon = _status?['goal'] == "lose"
-        ? Icons.trending_down
-        : _status?['goal'] == "gain"
-        ? Icons.trending_up
-        : Icons.remove_red_eye;
-
-    return _buildStyledCard(
-      child: Column(
+    return Container(
+      width: double.infinity,
+      constraints: const BoxConstraints(minHeight: 140),
+      decoration: BoxDecoration(
+        color: AppColors.glassCardColor,
+        borderRadius: BorderRadius.circular(24),
+        border: Border.all(color: AppColors.glassCardColor),
+      ),
+      clipBehavior: Clip.hardEdge,
+      child: Stack(
         children: [
-          GestureDetector(
-            onTap: _showCalorieInfo,
-            child: Row(
+          Positioned.fill(
+            child: AnimatedBuilder(
+              animation: _waveController,
+              builder: (context, child) {
+                return TweenAnimationBuilder<double>(
+                  tween: Tween<double>(begin: 0, end: progress),
+                  duration: const Duration(milliseconds: 1500),
+                  curve: Curves.easeOutCubic,
+                  builder: (context, fillHeight, child) {
+                    return CustomPaint(
+                      painter: WaterWavePainter(
+                        fillHeight: fillHeight,
+                        wavePhase: _waveController.value,
+                        color: Colors.blueAccent.withValues(alpha: 0.1),
+                        backgroundColor: Colors.transparent,
+                      ),
+                    );
+                  },
+                );
+              },
+            ),
+          ),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 15),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
               children: [
-                Stack(
-                  alignment: Alignment.center,
+                Row(
                   children: [
-                    _ring(c, targetC, 120, Colors.purpleAccent),
-                    _ring(p, targetP, 95, Colors.blueAccent),
-                    _ring(f, targetF, 70, Colors.orangeAccent),
-                    Column(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Text(
-                          "$eaten",
-                          style: const TextStyle(
-                            fontSize: 22,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                        Text(
-                          "ккал",
+                    const Icon(
+                      Icons.water_drop,
+                      color: Colors.blueAccent,
+                      size: 20,
+                    ),
+                    const SizedBox(width: 8),
+                    Text(
+                      "Водний баланс",
+                      style: TextStyle(
+                        color: AppColors.textWhite,
+                        fontSize: 16,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    const Spacer(),
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 8,
+                        vertical: 3,
+                      ),
+                      decoration: BoxDecoration(
+                        color: Colors.blueAccent.withValues(alpha: 0.2),
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                      child: TweenAnimationBuilder<int>(
+                        tween: IntTween(begin: 0, end: current),
+                        duration: const Duration(seconds: 2),
+                        curve: Curves.easeOut,
+                        builder: (context, value, child) => Text(
+                          "$value / $target мл",
                           style: TextStyle(
-                            fontSize: 10,
-                            color: AppColors.textSecondary,
+                            color: Colors.blueAccent.withValues(alpha: 0.9),
+                            fontSize: 12,
+                            fontWeight: FontWeight.w600,
                           ),
                         ),
-                      ],
+                      ),
                     ),
                   ],
                 ),
-                const SizedBox(width: 25),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Row(
+                const SizedBox(height: 10),
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.end,
+                  children: [
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Icon(
-                            goalIcon,
-                            size: 14,
-                            color: AppColors.primaryColor,
+                          TweenAnimationBuilder<int>(
+                            tween: IntTween(begin: 0, end: percentage),
+                            duration: const Duration(seconds: 2),
+                            curve: Curves.easeOut,
+                            builder: (context, value, child) => Text(
+                              "$value%",
+                              style: TextStyle(
+                                color: AppColors.textWhite,
+                                fontSize: 40,
+                                fontWeight: FontWeight.bold,
+                                height: 1.0,
+                              ),
+                            ),
                           ),
-                          const SizedBox(width: 6),
+                          const SizedBox(height: 4),
                           Text(
-                            goalText.toUpperCase(),
+                            "Денної норми води",
                             style: TextStyle(
-                              color: AppColors.primaryColor,
-                              fontSize: 11,
-                              fontWeight: FontWeight.bold,
-                              letterSpacing: 0.5,
+                              color: AppColors.textSecondary,
+                              fontSize: 13,
                             ),
                           ),
                         ],
                       ),
-                      const SizedBox(height: 8),
-                      Text(
-                        goalReached ? "Статус" : "Залишилось",
-                        style: TextStyle(
-                          color: AppColors.textSecondary,
-                          fontSize: 13,
+                    ),
+                    Padding(
+                      padding: const EdgeInsets.only(bottom: 2),
+                      child: GestureDetector(
+                        onTap: () => addWater(),
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 14,
+                            vertical: 8,
+                          ),
+                          decoration: BoxDecoration(
+                            color: Colors.white.withOpacity(0.1),
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              const Icon(
+                                Icons.add,
+                                color: Colors.white,
+                                size: 16,
+                              ),
+                              const SizedBox(width: 6),
+                              const Text(
+                                "Додати",
+                                style: TextStyle(
+                                  color: Colors.white,
+                                  fontSize: 14,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                            ],
+                          ),
                         ),
                       ),
-                      const SizedBox(height: 2),
-                      Text(
-                        goalReached ? "Ціль досягнута! 🎉" : "$remaining ккал",
-                        style: TextStyle(
-                          fontSize: goalReached ? 16 : 24,
-                          fontWeight: FontWeight.bold,
-                          color: goalReached
-                              ? Colors.orangeAccent
-                              : AppColors.textWhite,
-                        ),
-                      ),
-                      const SizedBox(height: 10),
-                      ClipRRect(
-                        borderRadius: BorderRadius.circular(10),
-                        child: LinearProgressIndicator(
-                          value: (eatenCals / targetCals).clamp(0.0, 1.0),
-                          backgroundColor: AppColors.cardColor,
-                          color: AppColors.primaryColor,
-                          minHeight: 6,
-                        ),
-                      ),
-                      const SizedBox(height: 6),
-                      Text(
-                        "Ціль: $targetCals ккал",
-                        style: TextStyle(
-                          fontSize: 11,
-                          color: AppColors.textSecondary,
-                        ),
-                      ),
-                    ],
-                  ),
+                    ),
+                  ],
                 ),
               ],
             ),
           ),
-          const SizedBox(height: 25),
-          Divider(color: AppColors.cardColor, height: 1),
-          const SizedBox(height: 20),
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceAround,
-            children: [
-              _compactMacroItem(
-                "Білки",
-                "${p.toInt()}",
-                targetP,
-                const Color(0xFF42A5F5),
-              ),
-              Container(width: 1, height: 30, color: AppColors.cardColor),
-              _compactMacroItem(
-                "Жири",
-                "${f.toInt()}",
-                targetF,
-                const Color(0xFFFFA726),
-              ),
-              Container(width: 1, height: 30, color: AppColors.cardColor),
-              _compactMacroItem(
-                "Вугл.",
-                "${c.toInt()}",
-                targetC,
-                const Color(0xFFAB47BC),
-              ),
-            ],
-          ),
         ],
       ),
     );
   }
-
-  Widget _ring(double curr, int total, double size, Color color) => SizedBox(
-    width: size,
-    height: size,
-    child: CircularProgressIndicator(
-      value: total > 0 ? (curr / total).clamp(0.0, 1.0) : 0,
-      strokeWidth: 8,
-      color: color,
-      backgroundColor: color.withValues(alpha: 0.1),
-    ),
-  );
-
-  Widget _compactMacroItem(
-    String label,
-    String value,
-    int target,
-    Color color,
-  ) => GestureDetector(
-    onTap: () =>
-        _showStyledModal(label, "Деталі про $label", color, Icons.info),
-    child: Column(
-      children: [
-        Text(
-          label,
-          style: TextStyle(
-            color: color,
-            fontWeight: FontWeight.bold,
-            fontSize: 12,
-          ),
-        ),
-        const SizedBox(height: 4),
-        RichText(
-          text: TextSpan(
-            children: [
-              TextSpan(
-                text: value,
-                style: TextStyle(
-                  color: AppColors.textWhite,
-                  fontWeight: FontWeight.bold,
-                  fontSize: 16,
-                ),
-              ),
-              TextSpan(
-                text: " / $targetг",
-                style: TextStyle(
-                  color: AppColors.textSecondary.withValues(alpha: 0.3),
-                  fontSize: 11,
-                ),
-              ),
-            ],
-          ),
-        ),
-      ],
-    ),
-  );
-
-  Widget _buildWaterTracker(int current, int target) {
-    const int totalGlasses = 5;
-    double mlsPerGlass = target / totalGlasses;
-    return _buildStyledCard(
-      child: Column(
-        children: [
-          Row(
-            children: [
-              const Icon(Icons.water_drop, color: Colors.blueAccent),
-              const SizedBox(width: 10),
-              Text(
-                "$current / $target мл",
-                style: const TextStyle(
-                  fontWeight: FontWeight.bold,
-                  fontSize: 16,
-                ),
-              ),
-              const Spacer(),
-              IconButton(
-                onPressed: () => addWater(),
-                icon: const Icon(
-                  Icons.add_circle,
-                  color: Colors.blueAccent,
-                  size: 30,
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 15),
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceAround,
-            children: List.generate(
-              totalGlasses,
-              (i) => _AnimatedGlass(
-                fillAmount: ((current - (i * mlsPerGlass)) / mlsPerGlass).clamp(
-                  0.0,
-                  1.0,
-                ),
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  void _showCalorieInfo() => _showStyledModal(
-    "Ваша Ціль",
-    "Баланс БЖВ важливий для результату.",
-    AppColors.primaryColor,
-    Icons.info_outline,
-  );
-
-  void _showStyledModal(
-    String title,
-    String text,
-    Color color,
-    IconData icon,
-  ) => showModalBottomSheet(
-    context: context,
-    backgroundColor: Colors.transparent,
-    builder: (context) => Container(
-      padding: const EdgeInsets.all(24),
-      decoration: BoxDecoration(
-        color: AppColors.backgroundDark,
-        borderRadius: const BorderRadius.vertical(top: Radius.circular(35)),
-        border: Border.all(color: AppColors.cardColor),
-      ),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Container(
-            width: 40,
-            height: 4,
-            decoration: BoxDecoration(
-              color: AppColors.textSecondary.withValues(alpha: 0.3),
-              borderRadius: BorderRadius.circular(2),
-            ),
-          ),
-          const SizedBox(height: 25),
-          Icon(icon, color: color, size: 50),
-          const SizedBox(height: 15),
-          Text(
-            title,
-            style: TextStyle(
-              color: color,
-              fontSize: 24,
-              fontWeight: FontWeight.bold,
-            ),
-          ),
-          const SizedBox(height: 20),
-          Text(
-            text,
-            textAlign: TextAlign.center,
-            style: TextStyle(
-              color: AppColors.textSecondary,
-              fontSize: 16,
-              height: 1.5,
-            ),
-          ),
-          const SizedBox(height: 30),
-          ElevatedButton(
-            onPressed: () => Navigator.pop(context),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: color.withValues(alpha: 0.2),
-              foregroundColor: color,
-              minimumSize: const Size(double.infinity, 55),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(18),
-              ),
-            ),
-            child: const Text(
-              "Зрозуміло",
-              style: TextStyle(fontWeight: FontWeight.bold),
-            ),
-          ),
-        ],
-      ),
-    ),
-  );
-}
-
-class _AnimatedGlass extends StatelessWidget {
-  final double fillAmount;
-  const _AnimatedGlass({required this.fillAmount});
-  @override
-  Widget build(BuildContext context) => Stack(
-    alignment: Alignment.bottomCenter,
-    children: [
-      Icon(Icons.local_drink, size: 30, color: AppColors.cardColor),
-      TweenAnimationBuilder<double>(
-        tween: Tween(begin: 0, end: fillAmount),
-        duration: const Duration(milliseconds: 1200),
-        curve: Curves.elasticOut,
-        builder: (context, value, child) => ClipRect(
-          child: Align(
-            alignment: Alignment.bottomCenter,
-            heightFactor: value,
-            child: Icon(
-              Icons.local_drink,
-              size: 30,
-              color: Colors.blueAccent.withValues(alpha: 0.8),
-            ),
-          ),
-        ),
-      ),
-    ],
-  );
 }
 
 class AddVitaminSheet extends StatefulWidget {
@@ -1722,7 +2258,6 @@ class _AddVitaminSheetState extends State<AddVitaminSheet> {
     try {
       final http.Response res;
       if (widget.editVitamin != null && widget.editVitamin['id'] != null) {
-        // Оновлюємо існуючий вітамін
         res = await http.put(
           Uri.parse(
             '${AuthService.baseUrl}/vitamins/${widget.editVitamin['id']}',
@@ -1731,7 +2266,6 @@ class _AddVitaminSheetState extends State<AddVitaminSheet> {
           body: jsonEncode(data),
         );
       } else {
-        // Додаємо новий вітамін
         res = await http.post(
           Uri.parse('${AuthService.baseUrl}/add_vitamin'),
           headers: {'Content-Type': 'application/json'},
@@ -2360,4 +2894,273 @@ class _AddVitaminSheetState extends State<AddVitaminSheet> {
       ),
     );
   }
+}
+
+class DottedCirclePainter extends CustomPainter {
+  final Color color;
+  final Color? glowColor;
+
+  DottedCirclePainter({required this.color, this.glowColor});
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final double radius = size.width / 2;
+    final int count = 12;
+
+    if (glowColor != null) {
+      final glowPaint = Paint()
+        ..color = glowColor!
+        ..style = PaintingStyle.fill
+        ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 4);
+
+      for (int i = 0; i < count; i++) {
+        double angle = (2 * pi * i) / count;
+        double x = radius + (radius - 1) * cos(angle);
+        double y = radius + (radius - 1) * sin(angle);
+        canvas.drawCircle(Offset(x, y), 3.0, glowPaint);
+      }
+    }
+
+    final paint = Paint()
+      ..color = color
+      ..style = PaintingStyle.fill;
+
+    for (int i = 0; i < count; i++) {
+      double angle = (2 * pi * i) / count;
+      double x = radius + (radius - 1) * cos(angle);
+      double y = radius + (radius - 1) * sin(angle);
+      canvas.drawCircle(Offset(x, y), 1.5, paint);
+    }
+  }
+
+  @override
+  bool shouldRepaint(covariant DottedCirclePainter oldDelegate) =>
+      oldDelegate.color != color || oldDelegate.glowColor != glowColor;
+}
+
+class CalorieArcPainter extends CustomPainter {
+  final double current;
+  final double target;
+  final Color startColor;
+  final Color endColor;
+
+  CalorieArcPainter({
+    required this.current,
+    required this.target,
+    required this.startColor,
+    required this.endColor,
+  });
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final center = Offset(size.width / 2, size.height);
+    final double radius = min(size.width / 2, size.height) - 10;
+
+    final bgPaint = Paint()
+      ..color = Colors.white.withValues(alpha: 0.08)
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 12
+      ..strokeCap = StrokeCap.round;
+
+    final progressPaint = Paint()
+      ..shader = LinearGradient(
+        colors: [startColor, endColor],
+      ).createShader(Rect.fromCircle(center: center, radius: radius))
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 12
+      ..strokeCap = StrokeCap.round;
+
+    final glowPaint = Paint()
+      ..shader = LinearGradient(
+        colors: [
+          startColor.withValues(alpha: 0.5),
+          endColor.withValues(alpha: 0.3),
+        ],
+      ).createShader(Rect.fromCircle(center: center, radius: radius))
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 20
+      ..strokeCap = StrokeCap.round
+      ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 12);
+
+    canvas.drawArc(
+      Rect.fromCircle(center: center, radius: radius),
+      -pi,
+      pi,
+      false,
+      bgPaint,
+    );
+
+    double progress = target > 0 ? (current / target).clamp(0.0, 1.0) : 0;
+
+    if (progress > 0) {
+      canvas.drawArc(
+        Rect.fromCircle(center: center, radius: radius),
+        -pi,
+        pi * progress,
+        false,
+        glowPaint,
+      );
+    }
+
+    canvas.drawArc(
+      Rect.fromCircle(center: center, radius: radius),
+      -pi,
+      pi * progress,
+      false,
+      progressPaint,
+    );
+  }
+
+  @override
+  bool shouldRepaint(covariant CalorieArcPainter oldDelegate) =>
+      oldDelegate.current != current || oldDelegate.target != target;
+}
+
+class MacroRingPainter extends CustomPainter {
+  final double percent;
+  final Color color;
+
+  MacroRingPainter({required this.percent, required this.color});
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final center = Offset(size.width / 2, size.height / 2);
+    final radius = size.width / 2 - 2;
+
+    final bgPaint = Paint()
+      ..color = Colors.white.withValues(alpha: 0.1)
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 3;
+
+    final progressPaint = Paint()
+      ..color = color
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 3
+      ..strokeCap = StrokeCap.round;
+
+    final glowPaint = Paint()
+      ..color = color.withValues(alpha: 0.4)
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 8
+      ..strokeCap = StrokeCap.round
+      ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 6);
+
+    canvas.drawCircle(center, radius, bgPaint);
+
+    if (percent > 0) {
+      canvas.drawArc(
+        Rect.fromCircle(center: center, radius: radius),
+        -pi / 2,
+        2 * pi * percent,
+        false,
+        glowPaint,
+      );
+    }
+
+    canvas.drawArc(
+      Rect.fromCircle(center: center, radius: radius),
+      -pi / 2,
+      2 * pi * percent,
+      false,
+      progressPaint,
+    );
+  }
+
+  @override
+  bool shouldRepaint(covariant MacroRingPainter oldDelegate) =>
+      oldDelegate.percent != percent || oldDelegate.color != color;
+}
+
+class WaterWavePainter extends CustomPainter {
+  final double fillHeight;
+  final double wavePhase;
+  final Color color;
+  final Color backgroundColor;
+
+  WaterWavePainter({
+    required this.fillHeight,
+    required this.wavePhase,
+    required this.color,
+    required this.backgroundColor,
+  });
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    if (backgroundColor != Colors.transparent) {
+      final bgPaint = Paint()..color = backgroundColor;
+      canvas.drawRect(Offset.zero & size, bgPaint);
+    }
+
+    if (fillHeight <= 0) return;
+
+    const double safeZone = 55.0;
+    final double maxWaveHeight = max(0.0, size.height - safeZone);
+    final effectiveHeight = maxWaveHeight * fillHeight;
+
+    final baseY = size.height - effectiveHeight;
+
+    final wavePaint1 = Paint()..color = color;
+    final wavePaint2 = Paint()..color = color.withValues(alpha: 0.6);
+    final wavePaint3 = Paint()..color = color.withValues(alpha: 0.3);
+
+    _drawWave(
+      canvas,
+      size,
+      baseHeight: baseY,
+      waveHeight: 12,
+      waveLength: size.width,
+      phase: wavePhase,
+      paint: wavePaint1,
+    );
+    _drawWave(
+      canvas,
+      size,
+      baseHeight: baseY + 5,
+      waveHeight: 15,
+      waveLength: size.width * 1.4,
+      phase: wavePhase + 0.3,
+      paint: wavePaint2,
+    );
+    _drawWave(
+      canvas,
+      size,
+      baseHeight: baseY - 5,
+      waveHeight: 8,
+      waveLength: size.width * 0.8,
+      phase: wavePhase + 0.7,
+      paint: wavePaint3,
+    );
+  }
+
+  void _drawWave(
+    Canvas canvas,
+    Size size, {
+    required double baseHeight,
+    required double waveHeight,
+    required double waveLength,
+    required double phase,
+    required Paint paint,
+  }) {
+    final path = Path();
+    path.moveTo(0, size.height);
+    path.lineTo(0, baseHeight);
+
+    for (double x = 0; x <= size.width; x++) {
+      final y =
+          baseHeight +
+          sin((x / waveLength * 2 * pi) + (phase * 2 * pi)) * waveHeight;
+      path.lineTo(x, y);
+    }
+
+    path.lineTo(size.width, size.height);
+    path.close();
+    canvas.drawPath(path, paint);
+  }
+
+  @override
+  bool shouldRepaint(covariant WaterWavePainter oldDelegate) =>
+      oldDelegate.fillHeight != fillHeight ||
+      oldDelegate.wavePhase != wavePhase ||
+      oldDelegate.color != color ||
+      oldDelegate.backgroundColor != backgroundColor;
 }

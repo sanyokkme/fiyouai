@@ -20,7 +20,7 @@ async def update_profile(data: ProfileUpdateSchema, service: NutritionService = 
     
     if data.field in ['height', 'age']: 
         update_data[data.field] = int(float(data.value))
-    elif data.field == 'weight':
+    elif data.field in ['weight', 'body_fat', 'target_weight', 'weekly_change_goal']:
         update_data[data.field] = float(data.value)
     
     try:
@@ -156,6 +156,7 @@ async def delete_account(user_id: str, service: NutritionService = Depends(get_n
         # 2. Видалення профілю з БД
         try:
             # Використовуємо table().delete()
+            service.user_repo.db.table("user_nutrition").delete().eq("user_id", user_id).execute()
             service.user_repo.db.table("user_profiles").delete().eq("id", user_id).execute()
             print(f"✅ Deleted profile from DB for {user_id}")
         except Exception as e:
