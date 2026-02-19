@@ -244,9 +244,7 @@ class HomeScreenState extends State<HomeScreen>
     // Попереднє завантаження даних
     DataManager().prefetchAllData();
     try {
-      final res = await http.get(
-        Uri.parse('${AuthService.baseUrl}/user_status/$userId'),
-      );
+      final res = await AuthService.authGet('/user_status/$userId');
       if (res.statusCode == 200) {
         final newData = jsonDecode(res.body);
         if (mounted && _status != null && !_isFirstNetworkLoad) {
@@ -286,9 +284,7 @@ class HomeScreenState extends State<HomeScreen>
     final userId = await AuthService.getStoredUserId();
     if (userId == null) return;
     try {
-      final res = await http.get(
-        Uri.parse('${AuthService.baseUrl}/vitamins/$userId'),
-      );
+      final res = await AuthService.authGet('/vitamins/$userId');
       if (res.statusCode == 200) {
         if (mounted) {
           setState(() {
@@ -304,9 +300,7 @@ class HomeScreenState extends State<HomeScreen>
   // Видалення вітаміну
   Future<void> _deleteVitamin(String id) async {
     try {
-      final res = await http.delete(
-        Uri.parse('${AuthService.baseUrl}/vitamins/$id'),
-      );
+      final res = await AuthService.authDelete('/vitamins/$id');
       if (res.statusCode == 200) {
         _showSuccessNotification("Вітамін видалено 🗑️");
         _fetchVitamins();
@@ -375,15 +369,11 @@ class HomeScreenState extends State<HomeScreen>
         setState(() => _status!['water'] = (_status!['water'] ?? 0) + amount);
       }
 
-      final res = await http.post(
-        Uri.parse('${AuthService.baseUrl}/add_water'),
-        headers: {'Content-Type': 'application/json'},
-        body: jsonEncode({
-          "user_id": userId,
-          "amount": amount,
-          "created_at": timestamp,
-        }),
-      );
+      final res = await AuthService.authPost('/add_water', {
+        "user_id": userId,
+        "amount": amount,
+        "created_at": timestamp,
+      });
       if (res.statusCode == 200) _fetchStatus();
     } catch (e) {
       debugPrint("Water Error: $e");
@@ -395,9 +385,7 @@ class HomeScreenState extends State<HomeScreen>
     final userId = await AuthService.getStoredUserId();
     if (userId == null) return;
     try {
-      final res = await http.get(
-        Uri.parse('${AuthService.baseUrl}/analytics/$userId'),
-      );
+      final res = await AuthService.authGet('/analytics/$userId');
 
       if (res.statusCode == 200) {
         final List<dynamic> data = jsonDecode(res.body);
@@ -528,9 +516,9 @@ class HomeScreenState extends State<HomeScreen>
                               const SizedBox(
                                 height: 25,
                               ), // Spacer before Stories/Sleep
+
                               //_buildStoriesCarousel(),
                               // const SizedBox(height: 25),
-                              
                             ],
                           ),
                         ),
@@ -1223,11 +1211,7 @@ class HomeScreenState extends State<HomeScreen>
             children: [
               Row(
                 children: [
-                  const Icon(
-                    Icons.medication,
-                    color: Colors.white,
-                    size: 20,
-                  ),
+                  const Icon(Icons.medication, color: Colors.white, size: 20),
                   const SizedBox(width: 8),
                   const Text(
                     "Мої вітаміни",

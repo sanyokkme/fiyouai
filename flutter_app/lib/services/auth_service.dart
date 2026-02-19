@@ -227,6 +227,76 @@ class AuthService {
     }
   }
 
+  // --- AUTH WRAPPERS (AUTO-REFRESH) ---
+
+  static Future<http.Response> authGet(String endpoint) async {
+    final token = await getAccessToken();
+    final url = Uri.parse('$baseUrl$endpoint');
+    final headers = {'Authorization': 'Bearer $token'};
+
+    var response = await http.get(url, headers: headers);
+
+    if (response.statusCode == 401) {
+      debugPrint("AuthService: 401 Unauthorized. Attempting refresh...");
+      final refreshed = await refreshSession();
+      if (refreshed) {
+        final newToken = await getAccessToken();
+        headers['Authorization'] = 'Bearer $newToken';
+        response = await http.get(url, headers: headers);
+      }
+    }
+    return response;
+  }
+
+  static Future<http.Response> authPost(String endpoint, Object? body) async {
+    final token = await getAccessToken();
+    final url = Uri.parse('$baseUrl$endpoint');
+    final headers = {
+      'Content-Type': 'application/json',
+      'Authorization': 'Bearer $token',
+    };
+
+    var response = await http.post(
+      url,
+      headers: headers,
+      body: jsonEncode(body),
+    );
+
+    if (response.statusCode == 401) {
+      debugPrint("AuthService: 401 Unauthorized. Attempting refresh...");
+      final refreshed = await refreshSession();
+      if (refreshed) {
+        final newToken = await getAccessToken();
+        headers['Authorization'] = 'Bearer $newToken';
+        response = await http.post(
+          url,
+          headers: headers,
+          body: jsonEncode(body),
+        );
+      }
+    }
+    return response;
+  }
+
+  static Future<http.Response> authDelete(String endpoint) async {
+    final token = await getAccessToken();
+    final url = Uri.parse('$baseUrl$endpoint');
+    final headers = {'Authorization': 'Bearer $token'};
+
+    var response = await http.delete(url, headers: headers);
+
+    if (response.statusCode == 401) {
+      debugPrint("AuthService: 401 Unauthorized. Attempting refresh...");
+      final refreshed = await refreshSession();
+      if (refreshed) {
+        final newToken = await getAccessToken();
+        headers['Authorization'] = 'Bearer $newToken';
+        response = await http.delete(url, headers: headers);
+      }
+    }
+    return response;
+  }
+
   // ВИХІД
   static Future<void> logout() async {
     final prefs = await SharedPreferences.getInstance();

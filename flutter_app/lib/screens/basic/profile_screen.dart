@@ -126,13 +126,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
     try {
       // 2. МЕРЕЖА (У фоні)
-      final token = await AuthService.getAccessToken();
-      final headers = token != null ? {'Authorization': 'Bearer $token'} : null;
-
-      final response = await http.get(
-        Uri.parse('${AuthService.baseUrl}/profile/$userId'),
-        headers: headers,
-      );
+      final response = await AuthService.authGet('/profile/$userId');
 
       if (response.statusCode == 200) {
         // Зберігаємо свіжі дані

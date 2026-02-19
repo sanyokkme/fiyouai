@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter/cupertino.dart';
 import 'dart:async';
 import 'dart:ui'; // Needed for ImageFilter
-import 'package:fl_chart/fl_chart.dart';
 import 'package:intl/intl.dart';
 
 import '../constants/app_colors.dart';
@@ -884,67 +883,115 @@ class _PlanLoadingAnimationState extends State<_PlanLoadingAnimation> {
 }
 
 // --- SUMMARY AND OTHERS ---
-class _OnboardingSummary extends StatelessWidget {
+class _OnboardingSummary extends StatefulWidget {
   final Map<String, dynamic> userData;
   final VoidCallback onFinish;
 
   const _OnboardingSummary({required this.userData, required this.onFinish});
 
   @override
-  Widget build(BuildContext context) {
-    final weight = userData['weight'] as double;
+  State<_OnboardingSummary> createState() => _OnboardingSummaryState();
+}
 
-    final dob = userData['dob'] as DateTime;
+class _OnboardingSummaryState extends State<_OnboardingSummary>
+    with TickerProviderStateMixin {
+  late List<AnimationController> _controllers;
+  late List<Animation<double>> _fadeAnimations;
+  late List<Animation<Offset>> _slideAnimations;
+
+  @override
+  void initState() {
+    super.initState();
+    // Create 5 staggered animations for different sections
+    _controllers = List.generate(
+      5,
+      (index) => AnimationController(
+        vsync: this,
+        duration: const Duration(milliseconds: 600),
+      ),
+    );
+
+    _fadeAnimations = _controllers
+        .map(
+          (controller) =>
+              CurvedAnimation(parent: controller, curve: Curves.easeOut),
+        )
+        .toList();
+
+    _slideAnimations = _controllers
+        .map(
+          (controller) => Tween<Offset>(
+            begin: const Offset(0, 0.2),
+            end: Offset.zero,
+          ).animate(CurvedAnimation(parent: controller, curve: Curves.easeOut)),
+        )
+        .toList();
+
+    // Start animations with stagger
+    for (int i = 0; i < _controllers.length; i++) {
+      Future.delayed(Duration(milliseconds: i * 150), () {
+        if (mounted) _controllers[i].forward();
+      });
+    }
+  }
+
+  @override
+  void dispose() {
+    for (var controller in _controllers) {
+      controller.dispose();
+    }
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final weight = widget.userData['weight'] as double;
+    final height = widget.userData['height'] as double;
+
+    final dob = widget.userData['dob'] as DateTime;
     final age = DateTime.now().year - dob.year;
+    final gender = widget.userData['gender'];
+    final activityLevel = widget.userData['activity_level'];
+
     // Calorie Calculation (Mifflin-St Jeor)
     double bmr =
-        10 * weight +
-        6.25 * (userData['height'] as double) -
-        5 * age +
-        (userData['gender'] == 'male' ? 5 : -161);
+        10 * weight + 6.25 * height - 5 * age + (gender == 'male' ? 5 : -161);
 
     // Activity Multiplier
     double activityMultiplier = 1.2;
-    if (userData['activity_level'] == "Легка активність") activityMultiplier = 1.375;
-    if (userData['activity_level'] == "Середня активність") activityMultiplier = 1.55;
-    if (userData['activity_level'] == "Висока активність") activityMultiplier = 1.725;
+    if (activityLevel == "Легка активність") activityMultiplier = 1.375;
+    if (activityLevel == "Середня активність") activityMultiplier = 1.55;
+    if (activityLevel == "Висока активність") activityMultiplier = 1.725;
 
     double tdee = bmr * activityMultiplier;
 
     // Time Estimation & Calorie Adjustment
-    String estimationText = "";
-    final goal = userData['goal'];
-    final targetWeight = userData['target_weight'] as double?;
+    final goal = widget.userData['goal'];
+    final targetWeight = widget.userData['target_weight'] as double?;
     int daysToGoal = 0;
+    DateTime? estimatedDate;
+    double dailyCalorieAdjustment = 0;
 
     if (goal != 'maintain' && targetWeight != null) {
-      double diff =
-          (targetWeight - weight); // positive if gain, negative if lose
-      // Recommended change: 0.5 kg/week
-      // 1kg fat = ~7700 kcal. 0.5kg/week = 3850 kcal/week = 550 kcal/day deficiency/surplus
+      double diff = (targetWeight - weight);
       double weeklyChange = 0.5;
-      double dailyCalorieAdjustment = 550;
+      dailyCalorieAdjustment = 550;
 
       if (goal == 'lose') {
         tdee -= dailyCalorieAdjustment;
-        userData['weekly_change_goal'] = -weeklyChange;
+        widget.userData['weekly_change_goal'] = -weeklyChange;
       } else {
         tdee += dailyCalorieAdjustment;
-        userData['weekly_change_goal'] = weeklyChange;
+        widget.userData['weekly_change_goal'] = weeklyChange;
       }
 
       double weeks = diff.abs() / weeklyChange;
       daysToGoal = (weeks * 7).toInt();
-      DateTime estimatedDate = DateTime.now().add(Duration(days: daysToGoal));
-
-      userData['estimated_end_date'] = estimatedDate.toIso8601String();
-      estimationText =
-          "Досягнення цілі: ${estimatedDate.day}.${estimatedDate.month}.${estimatedDate.year}";
+      estimatedDate = DateTime.now().add(Duration(days: daysToGoal));
+      widget.userData['estimated_end_date'] = estimatedDate.toIso8601String();
     }
 
     final calories = tdee.toInt();
-
-    // ... Macros ...
     final protein = (calories * 0.3 / 4).toInt();
     final fat = (calories * 0.3 / 9).toInt();
     final carbs = (calories * 0.4 / 4).toInt();
@@ -953,297 +1000,426 @@ class _OnboardingSummary extends StatelessWidget {
     return SingleChildScrollView(
       padding: const EdgeInsets.all(30),
       child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          Text(
-            "Ваш план готовий!",
-            style: TextStyle(
-              color: AppColors.textWhite,
-              fontSize: 32,
-              fontWeight: FontWeight.bold,
-            ),
-          ),
-          const SizedBox(height: 20),
-
-          _GlassContainer(
-            padding: const EdgeInsets.all(25),
-            child: Column(
-              children: [
-                Text(
-                  "Денна ціль калорій",
-                  style: TextStyle(
-                    color: AppColors.textSecondary,
-                    fontSize: 16,
-                  ),
-                ),
-                const SizedBox(height: 5),
-                Text(
-                  "$calories ккал",
-                  style: TextStyle(
-                    color: AppColors.primaryColor,
-                    fontSize: 42,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-
-                // Estimation Widget & Graph
-                if (goal != 'maintain' &&
-                    estimationText.isNotEmpty &&
-                    targetWeight != null) ...[
-                  const SizedBox(height: 20),
-
-                  // Graph Container
-                  Container(
-                    height: 220,
-                    width: double.infinity,
-                    padding: const EdgeInsets.fromLTRB(10, 20, 20, 10),
-                    child: LineChart(
-                      LineChartData(
-                        gridData: FlGridData(
-                          show: true,
-                          drawVerticalLine: true,
-                          getDrawingHorizontalLine: (value) => FlLine(
-                            color: Colors.white.withOpacity(0.1),
-                            strokeWidth: 1,
-                          ),
-                          getDrawingVerticalLine: (value) => FlLine(
-                            color: Colors.white.withOpacity(0.1),
-                            strokeWidth: 1,
-                          ),
-                        ),
-                        titlesData: FlTitlesData(
-                          leftTitles: AxisTitles(
-                            sideTitles: SideTitles(showTitles: false),
-                          ), // Hide Y numbers but keep grid
-                          topTitles: AxisTitles(
-                            sideTitles: SideTitles(showTitles: false),
-                          ),
-                          rightTitles: AxisTitles(
-                            sideTitles: SideTitles(
-                              showTitles: true,
-                              reservedSize: 40,
-                              getTitlesWidget: (value, meta) {
-                                if (value == weight || value == targetWeight) {
-                                  return Padding(
-                                    padding: const EdgeInsets.only(left: 8.0),
-                                    child: Text(
-                                      "${value.toInt()} кг",
-                                      style: TextStyle(
-                                        color: AppColors.textSecondary,
-                                        fontSize: 10,
-                                      ),
-                                    ),
-                                  );
-                                }
-                                return const SizedBox.shrink();
-                              },
-                            ),
-                          ),
-                          bottomTitles: AxisTitles(
-                            sideTitles: SideTitles(
-                              showTitles: true,
-                              getTitlesWidget: (value, meta) {
-                                if (value == 0)
-                                  return Padding(
-                                    padding: const EdgeInsets.only(top: 8.0),
-                                    child: Text(
-                                      DateFormat(
-                                        'dd.MM',
-                                      ).format(DateTime.now()),
-                                      style: TextStyle(
-                                        color: AppColors.textSecondary,
-                                        fontSize: 12,
-                                      ),
-                                    ),
-                                  );
-                                if (value == 1)
-                                  return Padding(
-                                    padding: const EdgeInsets.only(top: 8.0),
-                                    child: Text(
-                                      DateFormat('dd.MM').format(
-                                        DateTime.parse(
-                                          userData['estimated_end_date'],
-                                        ),
-                                      ),
-                                      style: TextStyle(
-                                        color: AppColors.textSecondary,
-                                        fontSize: 12,
-                                      ),
-                                    ),
-                                  );
-                                if (value == 0.5)
-                                  return Padding(
-                                    padding: const EdgeInsets.only(top: 8.0),
-                                    child: Text(
-                                      "$daysToGoal днів",
-                                      style: TextStyle(
-                                        color: AppColors.primaryColor,
-                                        fontSize: 12,
-                                        fontWeight: FontWeight.bold,
-                                      ),
-                                    ),
-                                  );
-                                return const SizedBox.shrink();
-                              },
-                              interval: 0.5, // To hit 0, 0.5, 1
-                              reservedSize: 30,
-                            ),
-                          ),
-                        ),
-                        borderData: FlBorderData(show: false),
-                        minX: 0,
-                        maxX: 1,
-                        minY:
-                            (weight < targetWeight ? weight : targetWeight) - 5,
-                        maxY:
-                            (weight > targetWeight ? weight : targetWeight) + 5,
-                        lineBarsData: [
-                          LineChartBarData(
-                            spots: [FlSpot(0, weight), FlSpot(1, targetWeight)],
-                            isCurved: true,
-                            color: AppColors.primaryColor,
-                            barWidth: 4,
-                            isStrokeCapRound: true,
-                            dotData: FlDotData(show: true),
-                            showingIndicators: [0, 1], // Show tooltips for both
-                            belowBarData: BarAreaData(
-                              show: true,
-                              gradient: LinearGradient(
-                                colors: [
-                                  AppColors.primaryColor.withOpacity(0.3),
-                                  AppColors.primaryColor.withOpacity(0.0),
-                                ],
-                                begin: Alignment.topCenter,
-                                end: Alignment.bottomCenter,
-                              ),
-                            ),
-                          ),
-                        ],
-                        lineTouchData: LineTouchData(
-                          enabled: false, // Static display
-                          getTouchedSpotIndicator:
-                              (
-                                LineChartBarData barData,
-                                List<int> spotIndexes,
-                              ) {
-                                return spotIndexes.map((spotIndex) {
-                                  return TouchedSpotIndicatorData(
-                                    FlLine(color: Colors.transparent),
-                                    FlDotData(
-                                      show: true,
-                                      getDotPainter:
-                                          (spot, percent, barData, index) =>
-                                              FlDotCirclePainter(
-                                                radius: 6,
-                                                color: AppColors.primaryColor,
-                                                strokeWidth: 2,
-                                                strokeColor: Colors.black,
-                                              ),
-                                    ),
-                                  );
-                                }).toList();
-                              },
-                          touchTooltipData: LineTouchTooltipData(
-                            getTooltipColor: (_) => Colors.transparent,
-                            tooltipPadding: const EdgeInsets.only(bottom: 0),
-                            tooltipMargin: 8,
-                            getTooltipItems:
-                                (List<LineBarSpot> touchedBarSpots) {
-                                  return touchedBarSpots.map((barSpot) {
-                                    return LineTooltipItem(
-                                      "${barSpot.y.toInt()} кг",
-                                      TextStyle(
-                                        color: AppColors.textWhite,
-                                        fontWeight: FontWeight.bold,
-                                        fontSize: 14,
-                                      ),
-                                    );
-                                  }).toList();
-                                },
-                          ),
-                        ),
-                      ),
+          // Title with animation
+          FadeTransition(
+            opacity: _fadeAnimations[0],
+            child: SlideTransition(
+              position: _slideAnimations[0],
+              child: Column(
+                children: [
+                  Text("🎉", style: TextStyle(fontSize: 48)),
+                  const SizedBox(height: 10),
+                  Text(
+                    "Ваш план готовий!",
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
+                      color: AppColors.textWhite,
+                      fontSize: 36,
+                      fontWeight: FontWeight.bold,
+                      height: 1.2,
                     ),
                   ),
                 ],
+              ),
+            ),
+          ),
+          const SizedBox(height: 30),
 
-                const SizedBox(height: 25),
-                Container(height: 1, color: Colors.white.withOpacity(0.1)),
-                const SizedBox(height: 25),
-
-                // Macros Grid
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    _buildMacroItem("Білки", "${protein} г"),
-                    _buildMacroItem("Жири", "${fat} г"),
-                    _buildMacroItem("Вуглеводи", "${carbs} г"),
-                  ],
+          // Date achievement with animation
+          if (goal != 'maintain' && estimatedDate != null)
+            FadeTransition(
+              opacity: _fadeAnimations[1],
+              child: SlideTransition(
+                position: _slideAnimations[1],
+                child: _GlassContainer(
+                  padding: const EdgeInsets.all(24),
+                  child: Column(
+                    children: [
+                      Container(
+                        width: 56,
+                        height: 56,
+                        decoration: BoxDecoration(
+                          color: AppColors.primaryColor.withOpacity(0.2),
+                          shape: BoxShape.circle,
+                        ),
+                        child: Icon(
+                          Icons.calendar_today,
+                          color: AppColors.primaryColor,
+                          size: 28,
+                        ),
+                      ),
+                      const SizedBox(height: 16),
+                      Text(
+                        "Ціль буде досягнута",
+                        style: TextStyle(
+                          color: AppColors.textSecondary,
+                          fontSize: 14,
+                          letterSpacing: 0.5,
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      Text(
+                        DateFormat('dd.MM.yyyy').format(estimatedDate),
+                        style: TextStyle(
+                          color: AppColors.primaryColor,
+                          fontSize: 28,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        "через $daysToGoal днів",
+                        style: TextStyle(
+                          color: AppColors.textSecondary,
+                          fontSize: 14,
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
-                const SizedBox(height: 25),
-                Container(height: 1, color: Colors.white.withOpacity(0.1)),
-                const SizedBox(height: 25),
+              ),
+            ),
 
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
+          if (goal != 'maintain' && estimatedDate != null)
+            const SizedBox(height: 24),
+
+          // Calories section with animation
+          FadeTransition(
+            opacity: _fadeAnimations[2],
+            child: SlideTransition(
+              position: _slideAnimations[2],
+              child: _GlassContainer(
+                padding: const EdgeInsets.all(28),
+                child: Column(
                   children: [
-                    Icon(Icons.water_drop, color: Colors.blueAccent),
-                    const SizedBox(width: 10),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Text("🔥", style: TextStyle(fontSize: 24)),
+                        const SizedBox(width: 12),
+                        Text(
+                          "Денна норма калорій",
+                          style: TextStyle(
+                            color: AppColors.textSecondary,
+                            fontSize: 16,
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 12),
                     Text(
-                      "Вода: $waterL л",
+                      "$calories",
                       style: TextStyle(
-                        color: AppColors.textWhite,
-                        fontSize: 18,
+                        color: AppColors.primaryColor,
+                        fontSize: 56,
                         fontWeight: FontWeight.bold,
+                        height: 1,
+                      ),
+                    ),
+                    Text(
+                      "ккал",
+                      style: TextStyle(
+                        color: AppColors.textSecondary,
+                        fontSize: 18,
                       ),
                     ),
                   ],
                 ),
-              ],
+              ),
             ),
           ),
+          const SizedBox(height: 24),
 
-          const SizedBox(height: 40),
-          SizedBox(
-            width: double.infinity,
-            height: 60,
-            child: ElevatedButton(
-              onPressed: onFinish,
-              style: ElevatedButton.styleFrom(
-                backgroundColor: AppColors.primaryColor,
-                foregroundColor: Colors.black,
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(30),
+          // Macros with circular progress
+          FadeTransition(
+            opacity: _fadeAnimations[3],
+            child: SlideTransition(
+              position: _slideAnimations[3],
+              child: _GlassContainer(
+                padding: const EdgeInsets.all(24),
+                child: Column(
+                  children: [
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Text("💪", style: TextStyle(fontSize: 24)),
+                        const SizedBox(width: 12),
+                        Text(
+                          "Макронутрієнти",
+                          style: TextStyle(
+                            color: AppColors.textWhite,
+                            fontSize: 18,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 24),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                      children: [
+                        _buildCircularMacro(
+                          "Білки",
+                          protein,
+                          const Color(0xFFFF6B9D),
+                          0.3,
+                        ),
+                        _buildCircularMacro(
+                          "Жири",
+                          fat,
+                          const Color(0xFFFFA726),
+                          0.3,
+                        ),
+                        _buildCircularMacro(
+                          "Вуглеводи",
+                          carbs,
+                          const Color(0xFF42A5F5),
+                          0.4,
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 24),
+                    Container(
+                      padding: const EdgeInsets.all(16),
+                      decoration: BoxDecoration(
+                        color: Colors.blueAccent.withOpacity(0.1),
+                        borderRadius: BorderRadius.circular(16),
+                      ),
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Text("💧", style: TextStyle(fontSize: 24)),
+                          const SizedBox(width: 12),
+                          Text(
+                            "Вода: ",
+                            style: TextStyle(
+                              color: AppColors.textSecondary,
+                              fontSize: 16,
+                            ),
+                          ),
+                          Text(
+                            "$waterL л",
+                            style: TextStyle(
+                              color: Colors.blueAccent,
+                              fontSize: 20,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
                 ),
               ),
-              child: const Text(
-                "ПОЧАТИ",
-                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18),
+            ),
+          ),
+          const SizedBox(height: 24),
+
+          // Calculation details with animation
+          FadeTransition(
+            opacity: _fadeAnimations[4],
+            child: SlideTransition(
+              position: _slideAnimations[4],
+              child: _GlassContainer(
+                padding: const EdgeInsets.all(24),
+                child: Column(
+                  children: [
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Text("📊", style: TextStyle(fontSize: 24)),
+                        const SizedBox(width: 12),
+                        Text(
+                          "Деталі розрахунку",
+                          style: TextStyle(
+                            color: AppColors.textWhite,
+                            fontSize: 18,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 20),
+                    _buildCalcRow(
+                      "Базовий метаболізм",
+                      "${bmr.toInt()} ккал",
+                      Icons.favorite,
+                    ),
+                    const SizedBox(height: 12),
+                    _buildCalcRow(
+                      "Коефіцієнт активності",
+                      "×${activityMultiplier.toStringAsFixed(2)}",
+                      Icons.directions_run,
+                    ),
+                    const SizedBox(height: 12),
+                    _buildCalcRow(
+                      "TDEE",
+                      "${(bmr * activityMultiplier).toInt()} ккал",
+                      Icons.local_fire_department,
+                    ),
+                    if (goal != 'maintain' && dailyCalorieAdjustment > 0) ...[
+                      const SizedBox(height: 12),
+                      _buildCalcRow(
+                        goal == 'lose' ? "Дефіцит" : "Профіцит",
+                        "${goal == 'lose' ? '-' : '+'}${dailyCalorieAdjustment.toInt()} ккал",
+                        goal == 'lose'
+                            ? Icons.trending_down
+                            : Icons.trending_up,
+                      ),
+                    ],
+                  ],
+                ),
               ),
             ),
           ),
+          const SizedBox(height: 40),
+
+          // Big finish button
+          Container(
+            height: 64,
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                colors: [AppColors.primaryColor, AppColors.brightPrimaryColor],
+              ),
+              borderRadius: BorderRadius.circular(32),
+              boxShadow: [
+                BoxShadow(
+                  color: AppColors.primaryColor.withOpacity(0.5),
+                  blurRadius: 20,
+                  offset: const Offset(0, 10),
+                ),
+              ],
+            ),
+            child: ElevatedButton(
+              onPressed: widget.onFinish,
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.transparent,
+                shadowColor: Colors.transparent,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(32),
+                ),
+              ),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Text(
+                    "ПОЧАТИ ПОДОРОЖ",
+                    style: TextStyle(
+                      color: Colors.black,
+                      fontWeight: FontWeight.bold,
+                      fontSize: 18,
+                      letterSpacing: 1,
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Icon(Icons.arrow_forward, color: Colors.black, size: 24),
+                ],
+              ),
+            ),
+          ),
+          const SizedBox(height: 20),
         ],
       ),
     );
   }
 
-  Widget _buildMacroItem(String label, String value) {
+  Widget _buildCircularMacro(
+    String label,
+    int grams,
+    Color color,
+    double percentage,
+  ) {
     return Column(
       children: [
-        Text(
-          value,
-          style: TextStyle(
-            color: AppColors.textWhite,
-            fontSize: 20,
-            fontWeight: FontWeight.bold,
+        SizedBox(
+          width: 80,
+          height: 80,
+          child: Stack(
+            alignment: Alignment.center,
+            children: [
+              SizedBox(
+                width: 80,
+                height: 80,
+                child: CircularProgressIndicator(
+                  value: percentage,
+                  strokeWidth: 8,
+                  backgroundColor: color.withOpacity(0.2),
+                  valueColor: AlwaysStoppedAnimation<Color>(color),
+                ),
+              ),
+              Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Text(
+                    "$grams",
+                    style: TextStyle(
+                      color: AppColors.textWhite,
+                      fontSize: 20,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                  Text(
+                    "г",
+                    style: TextStyle(
+                      color: AppColors.textSecondary,
+                      fontSize: 12,
+                    ),
+                  ),
+                ],
+              ),
+            ],
           ),
         ),
-        const SizedBox(height: 5),
+        const SizedBox(height: 12),
         Text(
           label,
           style: TextStyle(color: AppColors.textSecondary, fontSize: 14),
         ),
       ],
+    );
+  }
+
+  Widget _buildCalcRow(String label, String value, IconData icon) {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: AppColors.backgroundDark.withOpacity(0.3),
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Row(
+        children: [
+          Container(
+            width: 40,
+            height: 40,
+            decoration: BoxDecoration(
+              color: AppColors.primaryColor.withOpacity(0.2),
+              borderRadius: BorderRadius.circular(10),
+            ),
+            child: Icon(icon, color: AppColors.primaryColor, size: 20),
+          ),
+          const SizedBox(width: 16),
+          Expanded(
+            child: Text(
+              label,
+              style: TextStyle(
+                color: AppColors.textWhite,
+                fontSize: 15,
+                fontWeight: FontWeight.w500,
+              ),
+            ),
+          ),
+          Text(
+            value,
+            style: TextStyle(
+              color: AppColors.primaryColor,
+              fontSize: 16,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+        ],
+      ),
     );
   }
 }
