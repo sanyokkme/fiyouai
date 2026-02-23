@@ -21,6 +21,9 @@ class _SleepCalculatorScreenState extends State<SleepCalculatorScreen>
 
   bool _isBedTimeNow = false;
 
+  int _textKeyCounter = 0;
+  String _currentQualityText = "";
+
   // Animation for entry
   late AnimationController _entryAnimController;
   late Animation<double> _fadeAnimation;
@@ -67,6 +70,8 @@ class _SleepCalculatorScreenState extends State<SleepCalculatorScreen>
       // Auto-calculate optimal wake time (5 cycles = 7.5h + 15m fall asleep)
       // 5 cycles * 90m = 450m. + 15m = 465m.
       _wakeTime = _bedTime.add(const Duration(minutes: 465));
+      _currentQualityText = _getQualityText(_calculateCycles());
+      _textKeyCounter++;
     }
 
     if (shouldSetState) {
@@ -80,23 +85,15 @@ class _SleepCalculatorScreenState extends State<SleepCalculatorScreen>
     // Duration - 15 min fall asleep
     Duration sleepDuration = _wakeTime.difference(_bedTime);
 
-    // Handle day wrap adjustment if wake time is "before" bed time in pure hour terms
-    // But DateTime handles dates, so we need to ensure dates are correct.
-    // For the UI picker, we pick TimeOfDay mostly.
-
     // Let's normalize dates.
     // If wake time is before bed time, add 1 day to wake time.
     if (_wakeTime.isBefore(_bedTime)) {
       // This implies next day
-      // But wait, our state uses full DateTime?
-      // If using CupertinoPicker in date mode, it sets full date.
-      // If using time mode, it sets HH:MM.
     }
 
     // Just calculate minutes
     int totalMinutes = sleepDuration.inMinutes;
-    // Handle wrap around if dates aren't perfectly synced (though we try to sync them)
-    // If negative, it means next day (implicit)
+    // Handle wrap around if dates aren't perfectly synced
     if (totalMinutes < 0) totalMinutes += 24 * 60;
 
     int actualSleepMinutes = totalMinutes - 15;
@@ -172,14 +169,16 @@ class _SleepCalculatorScreenState extends State<SleepCalculatorScreen>
                             duration: const Duration(milliseconds: 300),
                             child: Text(
                               _getQualityText(cycles),
-                              key: ValueKey(cycles.round()),
+                              key: ValueKey(
+                                '$_currentQualityText-$_textKeyCounter',
+                              ),
                               style: TextStyle(
                                 color: statusColor,
                                 fontSize: 18,
                                 fontWeight: FontWeight.bold,
                                 shadows: [
                                   Shadow(
-                                    color: statusColor.withOpacity(0.5),
+                                    color: statusColor.withValues(alpha: 0.5),
                                     blurRadius: 10,
                                   ),
                                 ],
@@ -242,7 +241,7 @@ class _SleepCalculatorScreenState extends State<SleepCalculatorScreen>
             CustomPaint(
               size: const Size(320, 320),
               painter: ArcPainter(
-                color: Colors.white.withOpacity(0.05),
+                color: Colors.white.withValues(alpha: 0.05),
                 progress: 1.0,
                 strokeWidth: 24,
               ),
@@ -275,7 +274,7 @@ class _SleepCalculatorScreenState extends State<SleepCalculatorScreen>
                   textTheme: CupertinoTextThemeData(
                     dateTimePickerTextStyle: GoogleFonts.poppins(
                       color: Colors.white,
-                      fontSize: 24, // Large Text - Kept as requested
+                      fontSize: 24, // Large Text
                       fontWeight: FontWeight.bold,
                     ),
                   ),
@@ -287,13 +286,17 @@ class _SleepCalculatorScreenState extends State<SleepCalculatorScreen>
                   onDateTimeChanged: (val) {
                     setState(() {
                       _wakeTime = val;
-                      // Ensure date consistencies if needed
                       if (_wakeTime.isBefore(_bedTime)) {
                         _wakeTime = _wakeTime.add(const Duration(days: 1));
                       }
-                      // If diff > 24h, reduce day
                       if (_wakeTime.difference(_bedTime).inHours > 24) {
                         _wakeTime = _wakeTime.subtract(const Duration(days: 1));
+                      }
+
+                      String newText = _getQualityText(_calculateCycles());
+                      if (newText != _currentQualityText) {
+                        _currentQualityText = newText;
+                        _textKeyCounter++;
                       }
                     });
                   },
@@ -306,25 +309,29 @@ class _SleepCalculatorScreenState extends State<SleepCalculatorScreen>
               top: 50,
               child: Container(
                 padding: const EdgeInsets.symmetric(
-                  horizontal: 12,
-                  vertical: 4,
+                  horizontal: 16,
+                  vertical: 8,
                 ),
                 decoration: BoxDecoration(
-                  color: AppColors.glassCardColor.withOpacity(0.2),
+                  color: AppColors.glassCardColor.withValues(alpha: 0.2),
                   borderRadius: BorderRadius.circular(15),
                   border: Border.all(
-                    color: Colors.white.withOpacity(0.1),
-                  ), // Glass border
+                    color: Colors.white.withValues(alpha: 0.1),
+                  ),
                   boxShadow: [
                     BoxShadow(
-                      color: Colors.black.withOpacity(0.1),
+                      color: Colors.black.withValues(alpha: 0.1),
                       blurRadius: 5,
                     ),
                   ],
                 ),
                 child: const Text(
                   "⏰ Встаю о",
-                  style: TextStyle(color: Colors.white, fontSize: 12),
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontSize: 14,
+                    fontWeight: FontWeight.w600,
+                  ),
                 ),
               ),
             ),
@@ -365,14 +372,13 @@ class _SleepCalculatorScreenState extends State<SleepCalculatorScreen>
   Widget _buildBedTimeControls() {
     String bedTimeStr = DateFormat('HH:mm').format(_bedTime);
 
-    // New Style for container and buttons
     return Container(
       margin: const EdgeInsets.symmetric(horizontal: 20),
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
-        color: AppColors.glassCardColor.withOpacity(0.05), // More subtle glass
-        borderRadius: BorderRadius.circular(30), // More rounded
-        border: Border.all(color: Colors.white.withOpacity(0.08)),
+        color: AppColors.glassCardColor.withValues(alpha: 0.1),
+        borderRadius: BorderRadius.circular(30),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -382,7 +388,7 @@ class _SleepCalculatorScreenState extends State<SleepCalculatorScreen>
               Container(
                 padding: const EdgeInsets.all(8),
                 decoration: BoxDecoration(
-                  color: AppColors.primaryColor.withOpacity(0.2),
+                  color: AppColors.primaryColor.withValues(alpha: 0.2),
                   shape: BoxShape.circle,
                 ),
                 child: Icon(
@@ -395,7 +401,7 @@ class _SleepCalculatorScreenState extends State<SleepCalculatorScreen>
               Text(
                 "Лягаю спати:",
                 style: TextStyle(
-                  color: AppColors.textWhite.withOpacity(0.9),
+                  color: AppColors.textWhite.withValues(alpha: 0.9),
                   fontSize: 16,
                   fontWeight: FontWeight.w500,
                 ),
@@ -419,7 +425,7 @@ class _SleepCalculatorScreenState extends State<SleepCalculatorScreen>
                       border: _isBedTimeNow
                           ? null
                           : Border.all(
-                              color: AppColors.textGrey.withOpacity(0.3),
+                              color: AppColors.textGrey.withValues(alpha: 0.3),
                             ),
                     ),
                     child: Center(
@@ -427,8 +433,7 @@ class _SleepCalculatorScreenState extends State<SleepCalculatorScreen>
                         "Зараз",
                         style: TextStyle(
                           color: _isBedTimeNow
-                              ? Colors
-                                    .black // Assuming primary is bright
+                              ? Colors.black
                               : AppColors.textGrey,
                           fontWeight: FontWeight.w600,
                           fontSize: 16,
@@ -450,22 +455,24 @@ class _SleepCalculatorScreenState extends State<SleepCalculatorScreen>
                     padding: const EdgeInsets.symmetric(vertical: 16),
                     decoration: BoxDecoration(
                       color: !_isBedTimeNow
-                          ? AppColors.cardColor.withOpacity(
-                              0.5,
-                            ) // Active card color or glass
+                          ? AppColors.cardColor.withValues(alpha: 0.5)
                           : Colors.transparent,
                       borderRadius: BorderRadius.circular(20),
                       border: !_isBedTimeNow
                           ? Border.all(
-                              color: AppColors.primaryColor.withOpacity(0.5),
+                              color: AppColors.primaryColor.withValues(
+                                alpha: 0.5,
+                              ),
                             )
                           : Border.all(
-                              color: AppColors.textGrey.withOpacity(0.3),
+                              color: AppColors.textGrey.withValues(alpha: 0.3),
                             ),
                       boxShadow: !_isBedTimeNow
                           ? [
                               BoxShadow(
-                                color: AppColors.primaryColor.withOpacity(0.1),
+                                color: AppColors.primaryColor.withValues(
+                                  alpha: 0.1,
+                                ),
                                 blurRadius: 10,
                               ),
                             ]
@@ -520,7 +527,8 @@ class _SleepCalculatorScreenState extends State<SleepCalculatorScreen>
                   textTheme: CupertinoTextThemeData(
                     dateTimePickerTextStyle: GoogleFonts.poppins(
                       color: Colors.white,
-                      fontSize: 24,
+                      fontSize: 24, // Matches the ArcPicker size exactly
+                      fontWeight: FontWeight.bold, // Matches exactly
                     ),
                   ),
                 ),
@@ -531,17 +539,20 @@ class _SleepCalculatorScreenState extends State<SleepCalculatorScreen>
                   onDateTimeChanged: (val) {
                     setState(() {
                       _bedTime = val;
-                      // Auto-adjust wake time to nearest optimal?
-                      // Let's just update bed time and let user adjust wake time,
-                      // OR snap wake time to maintain current cycle count?
 
-                      // Maintaining cycle count is good UX
+                      // Maintaining cycle count
                       double currentCycles = _calculateCycles();
                       int targetCycles = currentCycles.round();
                       if (targetCycles < 3) targetCycles = 5;
 
                       int sleepMinutes = (targetCycles * 90) + 15;
                       _wakeTime = _bedTime.add(Duration(minutes: sleepMinutes));
+
+                      String newText = _getQualityText(_calculateCycles());
+                      if (newText != _currentQualityText) {
+                        _currentQualityText = newText;
+                        _textKeyCounter++;
+                      }
                     });
                   },
                 ),
@@ -581,7 +592,7 @@ class _SleepCalculatorScreenState extends State<SleepCalculatorScreen>
       padding: const EdgeInsets.symmetric(horizontal: 40),
       child: Text(
         "* Розрахунок включає 15 хвилин на засинання та цикли сну по 90 хвилин.",
-        style: TextStyle(color: AppColors.textSecondary, fontSize: 12),
+        style: TextStyle(color: AppColors.textSecondary, fontSize: 13),
         textAlign: TextAlign.center,
       ),
     );
@@ -631,7 +642,6 @@ class ArcPainter extends CustomPainter {
 
   @override
   bool shouldRepaint(covariant ArcPainter oldDelegate) {
-    // Always repaint if glow to maintain effect or use properties
     return oldDelegate.color != color || oldDelegate.progress != progress;
   }
 }

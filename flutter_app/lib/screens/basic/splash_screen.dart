@@ -3,6 +3,8 @@ import 'package:flutter_app/services/auth_service.dart';
 import '../../constants/app_colors.dart';
 
 class SplashScreen extends StatefulWidget {
+  const SplashScreen({super.key});
+
   @override
   _SplashScreenState createState() => _SplashScreenState();
 }
@@ -60,11 +62,11 @@ class _SplashScreenState extends State<SplashScreen> {
                   SizedBox(height: 20),
                   ElevatedButton(
                     onPressed: _connect,
-                    child: Text("Спробувати знову"),
                     style: ElevatedButton.styleFrom(
                       backgroundColor: AppColors.primaryColor,
                       foregroundColor: Colors.black,
                     ),
+                    child: Text("Спробувати знову"),
                   ),
                 ] else
                   Padding(

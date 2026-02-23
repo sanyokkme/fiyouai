@@ -73,16 +73,16 @@ class _WeightTrackerScreenState extends State<WeightTrackerScreen>
       // Determine Goal Type based on start/target if not explicit
       // Or assume from weeklyGoal sign
       if (_weeklyGoal != null) {
-        if (_weeklyGoal! < -0.01)
+        if (_weeklyGoal! < -0.01) {
           _goalType = 'lose';
-        else if (_weeklyGoal! > 0.01)
+        } else if (_weeklyGoal! > 0.01)
           _goalType = 'gain';
         else
           _goalType = 'maintain';
       } else if (_targetWeight != null && _startWeight != null) {
-        if (_targetWeight! < _startWeight!)
+        if (_targetWeight! < _startWeight!) {
           _goalType = 'lose';
-        else if (_targetWeight! > _startWeight!)
+        } else if (_targetWeight! > _startWeight!)
           _goalType = 'gain';
         else
           _goalType = 'maintain';
@@ -127,14 +127,14 @@ class _WeightTrackerScreenState extends State<WeightTrackerScreen>
     bool offTrack = false;
 
     if (_goalType == 'lose') {
-      if (_currentWeight <= _targetWeight!)
+      if (_currentWeight <= _targetWeight!) {
         reached = true;
-      else if (_currentWeight > (_startWeight ?? _currentWeight) + 1.0)
+      } else if (_currentWeight > (_startWeight ?? _currentWeight) + 1.0)
         offTrack = true; // Gained 1kg+ instead of losing
     } else if (_goalType == 'gain') {
-      if (_currentWeight >= _targetWeight!)
+      if (_currentWeight >= _targetWeight!) {
         reached = true;
-      else if (_currentWeight < (_startWeight ?? _currentWeight) - 1.0)
+      } else if (_currentWeight < (_startWeight ?? _currentWeight) - 1.0)
         offTrack = true; // Lost 1kg+ instead of gaining
     }
 
@@ -167,14 +167,15 @@ class _WeightTrackerScreenState extends State<WeightTrackerScreen>
 
   void _openGoalSpeedSheet() {
     bool isGain = true;
-    if (_goalType == 'lose')
+    if (_goalType == 'lose') {
       isGain = false;
-    else if (_goalType == 'gain')
+    } else if (_goalType == 'gain')
       isGain = true;
     else {
       // Fallback
-      if (_targetWeight != null && _currentWeight > _targetWeight!)
+      if (_targetWeight != null && _currentWeight > _targetWeight!) {
         isGain = false;
+      }
     }
 
     showModalBottomSheet(
@@ -187,9 +188,9 @@ class _WeightTrackerScreenState extends State<WeightTrackerScreen>
         onSpeedUpdated: (newSpeed) {
           setState(() {
             _weeklyGoal = newSpeed;
-            if (_weeklyGoal! < 0)
+            if (_weeklyGoal! < 0) {
               _goalType = 'lose';
-            else if (_weeklyGoal! > 0)
+            } else if (_weeklyGoal! > 0)
               _goalType = 'gain';
           });
           // Also triggers recalculation locally visually if needed
@@ -587,9 +588,9 @@ class _WeightTrackerScreenState extends State<WeightTrackerScreen>
       double rate = _weeklyGoal!.abs();
       int days = ((dist / rate) * 7).ceil();
 
-      if (_goalType == 'lose' && _currentWeight <= _targetWeight!)
+      if (_goalType == 'lose' && _currentWeight <= _targetWeight!) {
         forecast = "✅";
-      else if (_goalType == 'gain' && _currentWeight >= _targetWeight!)
+      } else if (_goalType == 'gain' && _currentWeight >= _targetWeight!)
         forecast = "✅";
       else
         forecast = days.toString();
@@ -1194,9 +1195,9 @@ class _ChangeGoalSheetState extends State<_ChangeGoalSheet> {
 
     // Determine weekly change goal default
     double weeklyChange = 0;
-    if (_selectedGoal == 'lose')
+    if (_selectedGoal == 'lose') {
       weeklyChange = -0.5;
-    else if (_selectedGoal == 'gain')
+    } else if (_selectedGoal == 'gain')
       weeklyChange = 0.25;
     else
       weeklyChange = 0;
@@ -1213,10 +1214,11 @@ class _ChangeGoalSheetState extends State<_ChangeGoalSheet> {
       if (mounted) Navigator.pop(context);
       widget.onGoalUpdated();
     } catch (e) {
-      if (mounted)
+      if (mounted) {
         ScaffoldMessenger.of(
           context,
         ).showSnackBar(SnackBar(content: Text("Помилка: $e")));
+      }
     }
   }
 }

@@ -666,7 +666,7 @@ class _FoodSearchScreenState extends State<FoodSearchScreen> {
     return ListView.builder(
       padding: const EdgeInsets.all(16),
       itemCount: 6,
-      itemBuilder: (_, __) => Padding(
+      itemBuilder: (_, _) => Padding(
         padding: const EdgeInsets.only(bottom: 12),
         child: Shimmer.fromColors(
           baseColor: AppColors.cardColor,

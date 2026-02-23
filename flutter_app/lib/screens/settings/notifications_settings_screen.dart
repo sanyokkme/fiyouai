@@ -149,7 +149,7 @@ class _NotificationsSettingsScreenState
           Switch(
             value: value,
             onChanged: onChanged,
-            activeColor: AppColors.primaryColor,
+            activeThumbColor: AppColors.primaryColor,
           ),
         ],
       ),

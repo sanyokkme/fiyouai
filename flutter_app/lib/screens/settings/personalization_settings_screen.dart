@@ -269,7 +269,7 @@ class _PersonalizationSettingsScreenState
           Switch(
             value: value,
             onChanged: onChanged,
-            activeColor: AppColors.primaryColor,
+            activeThumbColor: AppColors.primaryColor,
           ),
         ],
       ),

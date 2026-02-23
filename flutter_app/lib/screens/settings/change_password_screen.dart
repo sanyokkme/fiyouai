@@ -133,8 +133,9 @@ class _ChangePasswordScreenState extends State<ChangePasswordScreen> {
                             () => _obscureOldPassword = !_obscureOldPassword,
                           ),
                           validator: (value) {
-                            if (value == null || value.isEmpty)
+                            if (value == null || value.isEmpty) {
                               return 'Введіть поточний пароль';
+                            }
                             return null;
                           },
                         ),
@@ -150,8 +151,9 @@ class _ChangePasswordScreenState extends State<ChangePasswordScreen> {
                             () => _obscureNewPassword = !_obscureNewPassword,
                           ),
                           validator: (value) {
-                            if (value == null || value.isEmpty)
+                            if (value == null || value.isEmpty) {
                               return 'Введіть новий пароль';
+                            }
                             if (value.length < 6) return 'Мінімум 6 символів';
                             return null;
                           },
@@ -169,8 +171,9 @@ class _ChangePasswordScreenState extends State<ChangePasswordScreen> {
                                 !_obscureConfirmPassword,
                           ),
                           validator: (value) {
-                            if (value != _newPasswordController.text)
+                            if (value != _newPasswordController.text) {
                               return 'Паролі не співпадають';
+                            }
                             return null;
                           },
                         ),

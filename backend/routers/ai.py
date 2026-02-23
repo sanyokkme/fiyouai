@@ -51,6 +51,42 @@ async def analyze_image_only(user_id: str = Form(...), file: UploadFile = File(.
     except Exception as e:
         return JSONResponse(status_code=500, content={"detail": str(e)})
 
+from pydantic import BaseModel
+
+class AnalyzeTextRequest(BaseModel):
+    user_id: str
+    text: str
+    save_to_db: bool = False
+
+@router.post("/analyze_text")
+async def analyze_text(request: AnalyzeTextRequest, service: NutritionService = Depends(get_nutrition_service)):
+    """Аналізує текст з голосу і зберігає в історію, якщо save_to_db == True."""
+    if is_invalid_user(request.user_id): raise HTTPException(status_code=400, detail="Invalid User ID")
+    
+    try:
+        res = ai_service_instance.analyze_food_text(request.text)
+        
+        db_data = {
+            "user_id": request.user_id,
+            "calories": clean_to_int(res.get("calories")),
+            "protein": clean_to_float(res.get("protein")),
+            "fat": clean_to_float(res.get("fat")),
+            "carbs": clean_to_float(res.get("carbs")),
+            "food_items": [res.get("meal_name", "Нова страва")],
+            "image_url": None,
+            "created_at": get_now_poland().isoformat()
+        }
+        
+        if request.save_to_db:
+            service.meal_repo.add_meal(db_data)
+        
+        # Include meal_name in return specifically for UI
+        db_data['meal_name'] = res.get("meal_name", "Нова страва")
+        
+        return db_data
+    except Exception as e:
+        return JSONResponse(status_code=500, content={"detail": str(e)})
+
 @router.get("/generate_recipe/{user_id}")
 async def generate_recipe(user_id: str, service: NutritionService = Depends(get_nutrition_service)):
     user_id = user_id.strip()

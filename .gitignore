@@ -12,6 +12,8 @@ venv/
 /flutter_app/.pub/
 /flutter_app/build/
 /flutter_app/pubspec.lock
+/flutter_app/build.nosync/
+flutter_app/ios/build/
 
 # --- iOS / Xcode (Те, що часто забувають) ---
 /flutter_app/ios/Flutter/Generated.xcconfig

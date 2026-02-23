@@ -79,6 +79,60 @@ class AIService:
                 "protein": 0, "fat": 0, "carbs": 0
             }
 
+    def analyze_food_text(self, text: str):
+        """Аналізує текстовий опис їжі та повертає JSON з калоріями та БЖВ."""
+        try:
+            response = self.client.chat.completions.create(
+                model="gpt-4o",
+                response_format={"type": "json_object"},
+                messages=[
+                    {
+                        "role": "system",
+                        "content": """Ви — професійний дієтолог. Проаналізуйте опис їжі, який користувач надиктував голосом.
+                        ОБОВ'ЯЗКОВО розрахуйте калорійність на основі БЖВ: (білки * 4) + (вуглеводи * 4) + (жири * 9).
+                        Поверніть результати у форматі JSON:
+                        {
+                            "meal_name": "конкретна назва страви",
+                            "calories": ціле число (НЕ 0),
+                            "protein": число грам білків,
+                            "fat": число грам жирів,
+                            "carbs": число грам вуглеводів
+                        }.
+                        Якщо текст не стосується їжі або немає достатньо інформації, поверніть нулі, але спробуйте зробити обґрунтоване припущення, якщо це можливо."""
+                    },
+                    {
+                        "role": "user",
+                        "content": f"Оціни цю страву: {text}. Дай детальну оцінку Ккал та БЖВ."
+                    }
+                ]
+            )
+
+            content = response.choices[0].message.content
+            if not content:
+                raise ValueError("Отримано порожню відповідь від OpenAI")
+            
+            result = json.loads(content)
+            
+            p = float(result.get("protein", 0))
+            f = float(result.get("fat", 0))
+            c = float(result.get("carbs", 0))
+            current_calories = result.get("calories", 0)
+            
+            if current_calories == 0:
+                calculated_cal = int((p * 4) + (c * 4) + (f * 9))
+                result["calories"] = calculated_cal
+                logger.info(f"DEBUG: Калорії з тексту перераховані вручну: {calculated_cal}")
+
+            return result
+
+        except Exception as e:
+            logger.error(f"Error analyzing food text: {e}")
+            return {
+                "meal_name": "Не вдалося розпізнати",
+                "calories": 0,
+                "protein": 0, "fat": 0, "carbs": 0
+            }
+
     def generate_personalized_recipe(self, remaining_cal: int, preferences: list, goal: str):
         """Генерує рецепт та зображення."""
         recipe_prompt = f"""

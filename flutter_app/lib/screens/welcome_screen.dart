@@ -98,7 +98,7 @@ class _WelcomeScreenState extends State<WelcomeScreen>
           _buildAnimatedBackground(),
 
           // Контент
-          Container(
+          SizedBox(
             width: double.infinity,
             height: double.infinity,
             child: Stack(
@@ -365,7 +365,7 @@ class _WelcomeScreenState extends State<WelcomeScreen>
             alignment: Alignment.bottomLeft,
             children: <Widget>[
               ...previousChildren,
-              if (currentChild != null) currentChild,
+              ?currentChild,
             ],
           );
         },

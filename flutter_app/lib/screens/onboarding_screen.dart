@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/cupertino.dart';
 import 'dart:async';
 import 'dart:ui'; // Needed for ImageFilter
 import 'package:intl/intl.dart';
@@ -254,8 +253,9 @@ class _OnboardingScreenState extends State<OnboardingScreen>
   Widget _buildTopBar() {
     // Hide on loading/summary
     // Adjust logic for dynamic steps
-    if (_currentStep == _totalSteps - 2 || _currentStep == _totalSteps - 1)
+    if (_currentStep == _totalSteps - 2 || _currentStep == _totalSteps - 1) {
       return const SizedBox.shrink();
+    }
 
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 15),
@@ -390,9 +390,9 @@ class _OnboardingScreenState extends State<OnboardingScreen>
       ["Скинути вагу", "Утримати вагу", "Набрати вагу"],
       (val) {
         setState(() {
-          if (val == "Скинути вагу")
+          if (val == "Скинути вагу") {
             userData['goal'] = "lose";
-          else if (val == "Набрати вагу")
+          } else if (val == "Набрати вагу")
             userData['goal'] = "gain";
           else
             userData['goal'] = "maintain";
@@ -590,7 +590,7 @@ class _OnboardingScreenState extends State<OnboardingScreen>
           child: ListView.separated(
             padding: const EdgeInsets.symmetric(horizontal: 30),
             itemCount: options.length,
-            separatorBuilder: (_, __) => const SizedBox(height: 15),
+            separatorBuilder: (_, _) => const SizedBox(height: 15),
             itemBuilder: (context, index) {
               return Theme(
                 data: ThemeData(

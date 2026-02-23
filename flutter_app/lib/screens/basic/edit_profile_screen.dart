@@ -1,6 +1,7 @@
-import 'package:flutter_app/constants/app_colors.dart';
-import 'package:flutter_app/services/auth_service.dart';
+import 'dart:ui';
 import 'package:flutter/material.dart';
+import '../../constants/app_colors.dart';
+import '../../services/auth_service.dart';
 
 class EditProfileScreen extends StatefulWidget {
   final Map<String, dynamic> userData;
@@ -52,18 +53,11 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
     _selectedActivity = widget.userData['activity_level'] ?? 'Сидячий';
     _selectedGoal = widget.userData['goal'] ?? 'Підтримка ваги';
 
-    // Normalize values if they don't match list (basic safety)
     if (!_genders.contains(_selectedGender)) _selectedGender = _genders[0];
-    if (!_activityLevels.contains(_selectedActivity))
+    if (!_activityLevels.contains(_selectedActivity)) {
       _selectedActivity = _activityLevels[0];
-    // Goals might need mapping if stored in English but displayed in Ukrainian
-    // Assuming implementation stores in Ukrainian or we map it.
-    // Looking at existing code, it seems mixed or Ukrainian.
-    // Let's assume Ukrainian for display and stick to what's in DB or match it.
-    // Logic in ProfileScreen uses 'gain', 'lose' etc for keys but displays Ukrainian.
-    // backend/schemas.py uses defaults like "Сидячий", "Підтримка ваги"
+    }
 
-    // Attempt to parse DOB
     if (widget.userData['dob'] != null) {
       try {
         _selectedDob = DateTime.parse(widget.userData['dob']);
@@ -87,42 +81,24 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
     setState(() => _isLoading = true);
 
     try {
-      // Update each field
-      // Optimization: In a real app, send one bulk request.
-      // Current backend supports single field updates via /profile/update.
-      // We will loop through changes or just update what changed.
-
-      final newName = _nameController.text;
-      final newHeight = _heightController.text;
-      final newWeight = _weightController.text;
-
-      // We'll just call onUpdate for each changed field to reuse logic in parent
-      // But parent logic might trigger setState each time.
-      // Better to potentially bulk update here if we could, but let's stick to the requested architecture
-      // "Save button... changes MUST update in DB"
-
-      // Let's do it directly here via AuthService/http and then notify parent
-
       final updates = {
-        'name': newName,
+        'name': _nameController.text,
         'gender': _selectedGender,
         'activity_level': _selectedActivity,
         'goal': _selectedGoal,
-        'height': newHeight,
-        'weight': newWeight,
+        'height': _heightController.text,
+        'weight': _weightController.text,
         'dob': _selectedDob?.toIso8601String().split('T')[0],
       };
 
-      // Helper to check if changed
       for (var entry in updates.entries) {
         if (entry.value != widget.userData[entry.key]?.toString()) {
-          // Basic check, might need better type comparison
           await AuthService.updateProfile(entry.key, entry.value);
         }
       }
 
       if (mounted) {
-        Navigator.pop(context, true); // Return true to indicate refresh needed
+        Navigator.pop(context, true);
       }
     } catch (e) {
       if (mounted) {
@@ -138,96 +114,235 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
     }
   }
 
+  // ── Glass Card Helper ──────────────────────────────────────────────
+  Widget _glassCard({
+    required Widget child,
+    EdgeInsetsGeometry padding = const EdgeInsets.all(20),
+    double borderRadius = 24,
+    Color? glowColor,
+  }) {
+    return Container(
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(borderRadius),
+        boxShadow: [
+          if (glowColor != null)
+            BoxShadow(
+              color: glowColor.withValues(alpha: 0.15),
+              blurRadius: 20,
+              spreadRadius: -2,
+            ),
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.3),
+            blurRadius: 15,
+            offset: const Offset(0, 8),
+          ),
+        ],
+      ),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(borderRadius),
+        child: BackdropFilter(
+          filter: ImageFilter.blur(sigmaX: 14, sigmaY: 14),
+          child: Container(
+            padding: padding,
+            decoration: BoxDecoration(
+              color: Colors.white.withValues(alpha: 0.06),
+              borderRadius: BorderRadius.circular(borderRadius),
+              border: Border.all(
+                color: Colors.white.withValues(alpha: 0.12),
+                width: 1,
+              ),
+              gradient: LinearGradient(
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+                colors: [
+                  Colors.white.withValues(alpha: 0.1),
+                  Colors.white.withValues(alpha: 0.03),
+                ],
+              ),
+            ),
+            child: child,
+          ),
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: AppColors.backgroundDark,
-      appBar: AppBar(
-        backgroundColor: Colors.transparent,
-        elevation: 0,
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back, color: Colors.white),
-          onPressed: () => Navigator.pop(context),
-        ),
-        title: const Text(
-          "Редагувати профіль",
-          style: TextStyle(color: Colors.white),
-        ),
-        actions: [
-          if (_isLoading)
-            const Center(
-              child: Padding(
-                padding: EdgeInsets.only(right: 16),
-                child: SizedBox(
-                  width: 20,
-                  height: 20,
-                  child: CircularProgressIndicator(strokeWidth: 2),
-                ),
-              ),
-            )
-          else
-            TextButton(
-              onPressed: _save,
-              child: Text(
-                "Зберегти",
-                style: TextStyle(
-                  color: AppColors.primaryColor,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-            ),
-        ],
-      ),
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.all(20),
-        child: Form(
-          key: _formKey,
+      body: AppColors.buildBackgroundWithBlurSpots(
+        child: SafeArea(
           child: Column(
             children: [
-              _buildTextField("Ім'я", _nameController),
-              const SizedBox(height: 16),
-              _buildDropdown(
-                "Стать",
-                _selectedGender,
-                _genders,
-                (val) => setState(() => _selectedGender = val!),
+              // ── Top Bar ────────────────────────────────────────
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    // Back button
+                    GestureDetector(
+                      onTap: () => Navigator.pop(context),
+                      child: ClipRRect(
+                        borderRadius: BorderRadius.circular(21),
+                        child: BackdropFilter(
+                          filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+                          child: Container(
+                            width: 42,
+                            height: 42,
+                            decoration: BoxDecoration(
+                              color: Colors.white.withValues(alpha: 0.06),
+                              shape: BoxShape.circle,
+                              border: Border.all(
+                                color: Colors.white.withValues(alpha: 0.1),
+                              ),
+                            ),
+                            child: Icon(
+                              Icons.arrow_back_ios_new_rounded,
+                              color: Colors.white.withValues(alpha: 0.7),
+                              size: 18,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                    Text(
+                      "Редагувати",
+                      style: TextStyle(
+                        color: AppColors.textWhite,
+                        fontSize: 17,
+                        fontWeight: FontWeight.w600,
+                        letterSpacing: 0.3,
+                      ),
+                    ),
+                    // Save button
+                    GestureDetector(
+                      onTap: _isLoading ? null : _save,
+                      child: ClipRRect(
+                        borderRadius: BorderRadius.circular(21),
+                        child: BackdropFilter(
+                          filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+                          child: Container(
+                            width: 42,
+                            height: 42,
+                            decoration: BoxDecoration(
+                              color: AppColors.primaryColor.withValues(
+                                alpha: 0.15,
+                              ),
+                              shape: BoxShape.circle,
+                              border: Border.all(
+                                color: AppColors.primaryColor.withValues(
+                                  alpha: 0.3,
+                                ),
+                              ),
+                              boxShadow: [
+                                BoxShadow(
+                                  color: AppColors.primaryColor.withValues(
+                                    alpha: 0.2,
+                                  ),
+                                  blurRadius: 10,
+                                ),
+                              ],
+                            ),
+                            child: _isLoading
+                                ? Padding(
+                                    padding: const EdgeInsets.all(11),
+                                    child: CircularProgressIndicator(
+                                      strokeWidth: 2,
+                                      color: AppColors.primaryColor,
+                                    ),
+                                  )
+                                : Icon(
+                                    Icons.check_rounded,
+                                    color: AppColors.primaryColor,
+                                    size: 20,
+                                  ),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
               ),
-              const SizedBox(height: 16),
-              _buildDropdown(
-                "Рівень активності",
-                _selectedActivity,
-                _activityLevels,
-                (val) => setState(() => _selectedActivity = val!),
-              ),
-              const SizedBox(height: 16),
-              _buildDropdown(
-                "Ваша ціль",
-                _selectedGoal,
-                _goals,
-                (val) => setState(() => _selectedGoal = val!),
-              ),
-              const SizedBox(height: 16),
-              Row(
-                children: [
-                  Expanded(
-                    child: _buildTextField(
-                      "Ріст (см)",
-                      _heightController,
-                      isNumber: true,
+
+              // ── Form ───────────────────────────────────────────
+              Expanded(
+                child: SingleChildScrollView(
+                  padding: const EdgeInsets.fromLTRB(20, 16, 20, 40),
+                  child: Form(
+                    key: _formKey,
+                    child: Column(
+                      children: [
+                        _glassCard(
+                          glowColor: AppColors.primaryColor,
+                          child: Column(
+                            children: [
+                              _buildTextField("Ім'я", _nameController),
+                              const SizedBox(height: 20),
+                              _buildDropdown(
+                                "Стать",
+                                _selectedGender,
+                                _genders,
+                                (val) => setState(() => _selectedGender = val!),
+                              ),
+                            ],
+                          ),
+                        ),
+                        const SizedBox(height: 20),
+                        _glassCard(
+                          child: Column(
+                            children: [
+                              _buildDropdown(
+                                "Рівень активності",
+                                _selectedActivity,
+                                _activityLevels,
+                                (val) =>
+                                    setState(() => _selectedActivity = val!),
+                              ),
+                              const SizedBox(height: 20),
+                              _buildDropdown(
+                                "Ваша ціль",
+                                _selectedGoal,
+                                _goals,
+                                (val) => setState(() => _selectedGoal = val!),
+                              ),
+                            ],
+                          ),
+                        ),
+                        const SizedBox(height: 20),
+                        _glassCard(
+                          child: Column(
+                            children: [
+                              Row(
+                                children: [
+                                  Expanded(
+                                    child: _buildTextField(
+                                      "Ріст (см)",
+                                      _heightController,
+                                      isNumber: true,
+                                    ),
+                                  ),
+                                  const SizedBox(width: 16),
+                                  Expanded(
+                                    child: _buildTextField(
+                                      "Вага (кг)",
+                                      _weightController,
+                                      isNumber: true,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                              const SizedBox(height: 20),
+                              _buildDatePicker(),
+                            ],
+                          ),
+                        ),
+                      ],
                     ),
                   ),
-                  const SizedBox(width: 16),
-                  Expanded(
-                    child: _buildTextField(
-                      "Вага (кг)",
-                      _weightController,
-                      isNumber: true,
-                    ),
-                  ),
-                ],
+                ),
               ),
-              const SizedBox(height: 16),
-              _buildDatePicker(),
             ],
           ),
         ),
@@ -235,6 +350,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
     );
   }
 
+  // ── Text Field ─────────────────────────────────────────────────────
   Widget _buildTextField(
     String label,
     TextEditingController controller, {
@@ -245,19 +361,37 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
       children: [
         Text(
           label,
-          style: TextStyle(color: AppColors.textSecondary, fontSize: 14),
+          style: TextStyle(
+            color: Colors.white.withValues(alpha: 0.45),
+            fontSize: 13,
+            fontWeight: FontWeight.w500,
+          ),
         ),
         const SizedBox(height: 8),
         TextFormField(
           controller: controller,
           keyboardType: isNumber ? TextInputType.number : TextInputType.text,
-          style: const TextStyle(color: Colors.white),
+          style: const TextStyle(color: Colors.white, fontSize: 15),
+          cursorColor: AppColors.primaryColor,
           decoration: InputDecoration(
             filled: true,
-            fillColor: AppColors.cardColor,
+            fillColor: Colors.white.withValues(alpha: 0.05),
             border: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(12),
+              borderRadius: BorderRadius.circular(16),
               borderSide: BorderSide.none,
+            ),
+            enabledBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(16),
+              borderSide: BorderSide(
+                color: Colors.white.withValues(alpha: 0.08),
+              ),
+            ),
+            focusedBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(16),
+              borderSide: BorderSide(
+                color: AppColors.primaryColor.withValues(alpha: 0.4),
+                width: 1.5,
+              ),
             ),
             contentPadding: const EdgeInsets.symmetric(
               horizontal: 16,
@@ -271,6 +405,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
     );
   }
 
+  // ── Dropdown ───────────────────────────────────────────────────────
   Widget _buildDropdown(
     String label,
     String value,
@@ -282,22 +417,31 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
       children: [
         Text(
           label,
-          style: TextStyle(color: AppColors.textSecondary, fontSize: 14),
+          style: TextStyle(
+            color: Colors.white.withValues(alpha: 0.45),
+            fontSize: 13,
+            fontWeight: FontWeight.w500,
+          ),
         ),
         const SizedBox(height: 8),
         Container(
           padding: const EdgeInsets.symmetric(horizontal: 16),
           decoration: BoxDecoration(
-            color: AppColors.cardColor,
-            borderRadius: BorderRadius.circular(12),
+            color: Colors.white.withValues(alpha: 0.05),
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
           ),
           child: DropdownButtonHideUnderline(
             child: DropdownButton<String>(
               value: items.contains(value) ? value : items.first,
               isExpanded: true,
-              dropdownColor: AppColors.cardColor,
-              icon: const Icon(Icons.arrow_drop_down, color: Colors.white),
-              style: const TextStyle(color: Colors.white, fontSize: 16),
+              dropdownColor: const Color(0xFF1A1A2E),
+              icon: Icon(
+                Icons.keyboard_arrow_down_rounded,
+                color: Colors.white.withValues(alpha: 0.4),
+              ),
+              style: const TextStyle(color: Colors.white, fontSize: 15),
+              borderRadius: BorderRadius.circular(16),
               items: items
                   .map((e) => DropdownMenuItem(value: e, child: Text(e)))
                   .toList(),
@@ -309,16 +453,22 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
     );
   }
 
+  // ── Date Picker ────────────────────────────────────────────────────
   Widget _buildDatePicker() {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(
           "Дата народження",
-          style: TextStyle(color: AppColors.textSecondary, fontSize: 14),
+          style: TextStyle(
+            color: Colors.white.withValues(alpha: 0.45),
+            fontSize: 13,
+            fontWeight: FontWeight.w500,
+          ),
         ),
         const SizedBox(height: 8),
         InkWell(
+          borderRadius: BorderRadius.circular(16),
           onTap: () async {
             final picked = await showDatePicker(
               context: context,
@@ -331,7 +481,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                     colorScheme: ColorScheme.dark(
                       primary: AppColors.primaryColor,
                       onPrimary: Colors.black,
-                      surface: AppColors.cardColor,
+                      surface: const Color(0xFF1A1A2E),
                     ),
                   ),
                   child: child!,
@@ -344,14 +494,31 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
             width: double.infinity,
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
             decoration: BoxDecoration(
-              color: AppColors.cardColor,
-              borderRadius: BorderRadius.circular(12),
+              color: Colors.white.withValues(alpha: 0.05),
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
             ),
-            child: Text(
-              _selectedDob == null
-                  ? "Оберіть дату"
-                  : "${_selectedDob!.day}.${_selectedDob!.month}.${_selectedDob!.year}",
-              style: const TextStyle(color: Colors.white, fontSize: 16),
+            child: Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    _selectedDob == null
+                        ? "Оберіть дату"
+                        : "${_selectedDob!.day.toString().padLeft(2, '0')}.${_selectedDob!.month.toString().padLeft(2, '0')}.${_selectedDob!.year}",
+                    style: TextStyle(
+                      color: _selectedDob == null
+                          ? Colors.white.withValues(alpha: 0.3)
+                          : Colors.white,
+                      fontSize: 15,
+                    ),
+                  ),
+                ),
+                Icon(
+                  Icons.calendar_today_rounded,
+                  color: Colors.white.withValues(alpha: 0.3),
+                  size: 18,
+                ),
+              ],
             ),
           ),
         ),

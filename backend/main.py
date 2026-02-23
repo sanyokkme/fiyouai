@@ -8,7 +8,6 @@ from fastapi.responses import JSONResponse
 from rich.logging import RichHandler
 from rich.console import Console
 from banner import *
-import os
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -59,7 +58,7 @@ async def lifespan(app: FastAPI):
 # ІНІЦІАЛІЗАЦІЯ APP
 app = FastAPI(
     title="NutritionAI Backend API", 
-    version="3.0.0",
+    version="1.0.0",
     lifespan=lifespan
 )
 

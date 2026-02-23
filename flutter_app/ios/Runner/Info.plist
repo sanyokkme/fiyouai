@@ -11,6 +11,8 @@
 	</dict>
     <key>NSMicrophoneUsageDescription</key>
     <string>Нам потрібен доступ до мікрофону для відео (опціонально)</string>
+    <key>NSSpeechRecognitionUsageDescription</key>
+    <string>Нам потрібен доступ до розпізнавання мови для того щоб ви могли описувати свою їжу.</string>
 	<key>CADisableMinimumFrameDurationOnPhone</key>
 	<true/>
 	<key>CFBundleDevelopmentRegion</key>

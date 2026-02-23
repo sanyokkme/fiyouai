@@ -11,6 +11,7 @@ import 'package:flutter_app/services/auth_service.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import 'dart:convert';
+import 'ai_logger_screen.dart';
 
 class MainScreen extends StatefulWidget {
   const MainScreen({super.key});
@@ -195,15 +196,38 @@ class _MainScreenState extends State<MainScreen> {
         ),
         const SizedBox(height: 15),
 
-        // AI Recipe
-        _buildGridItem(
-          icon: Icons.auto_awesome,
-          title: "AI Рецепт",
-          color: Colors.deepPurpleAccent,
-          onTap: () {
-            Navigator.pop(context);
-            setState(() => _currentIndex = 4);
-          },
+        // AI Tools
+        Row(
+          children: [
+            Expanded(
+              child: _buildGridItem(
+                icon: Icons.auto_awesome,
+                title: "Записати їжу",
+                color: AppColors.primaryColor,
+                onTap: () {
+                  Navigator.pop(context);
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (context) => const AILoggerScreen(),
+                    ),
+                  );
+                },
+              ),
+            ),
+            const SizedBox(width: 15),
+            Expanded(
+              child: _buildGridItem(
+                icon: Icons.restaurant_menu,
+                title: "AI Рецепт",
+                color: Colors.deepPurpleAccent,
+                onTap: () {
+                  Navigator.pop(context);
+                  setState(() => _currentIndex = 4);
+                },
+              ),
+            ),
+          ],
         ),
         const SizedBox(height: 15),
 
