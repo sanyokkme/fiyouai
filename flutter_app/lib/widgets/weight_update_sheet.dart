@@ -2,8 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_app/constants/app_colors.dart';
 import 'package:flutter_app/services/auth_service.dart';
 
-import 'package:http/http.dart' as http;
-import 'dart:convert';
 import 'package:flutter_app/services/notification_service.dart';
 
 class WeightUpdateSheet extends StatefulWidget {
@@ -56,15 +54,11 @@ class _WeightUpdateSheetState extends State<WeightUpdateSheet> {
 
       // but simple profile update here is fine.
 
-      // Use new weight history endpoint
-      final res = await http.post(
-        Uri.parse('${AuthService.baseUrl}/weight/add'),
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': 'Bearer $token',
-        },
-        body: jsonEncode({"user_id": userId, "weight": newWeight}),
-      );
+      // Use AuthService to support offline queue automatically
+      final res = await AuthService.authPost('/weight/add', {
+        "user_id": userId,
+        "weight": newWeight,
+      });
 
       if (res.statusCode == 200) {
         if (mounted) {

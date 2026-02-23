@@ -1,7 +1,7 @@
 import 'dart:ui';
 import 'package:flutter/material.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 import 'package:shimmer/shimmer.dart';
+import 'package:hive_flutter/hive_flutter.dart';
 import 'dart:convert';
 import '../services/auth_service.dart';
 import '../constants/app_colors.dart';
@@ -25,11 +25,12 @@ class _TipsScreenState extends State<TipsScreen> {
   }
 
   Future<void> _loadTipsFromCache() async {
-    final prefs = await SharedPreferences.getInstance();
     final userId = await AuthService.getStoredUserId();
 
     if (userId != null) {
-      final cachedTips = prefs.getString('${DataManager.keyTips}_$userId');
+      // DataManager зберігає поради в Hive, тому читаємо звідти ж
+      final box = Hive.box('offlineDataBox');
+      final cachedTips = box.get('${DataManager.keyTips}_$userId') as String?;
 
       if (cachedTips != null) {
         if (mounted) {
@@ -39,10 +40,22 @@ class _TipsScreenState extends State<TipsScreen> {
           });
         }
       } else {
+        // Порад немає — просимо DataManager згенерувати
         await DataManager().prefetchAllData();
-        _loadTipsFromCache();
-        return;
+        // Пробуємо прочитати ще раз після генерації
+        final newCachedTips =
+            box.get('${DataManager.keyTips}_$userId') as String?;
+        if (newCachedTips != null && mounted) {
+          setState(() {
+            _aiData = jsonDecode(newCachedTips);
+            _isLoading = false;
+          });
+        } else if (mounted) {
+          setState(() => _isLoading = false);
+        }
       }
+    } else {
+      if (mounted) setState(() => _isLoading = false);
     }
 
     DataManager().markTipsAsViewed();

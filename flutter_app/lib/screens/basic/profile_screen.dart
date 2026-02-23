@@ -15,6 +15,13 @@ import '../../services/auth_service.dart';
 import '../../constants/app_colors.dart';
 import '../recipe_book_screen.dart';
 import 'edit_profile_screen.dart';
+import '../settings/home_layout_settings_screen.dart';
+import '../settings/notifications_settings_screen.dart';
+import '../settings/personalization_settings_screen.dart';
+import '../settings/storage_management_screen.dart';
+import '../settings/data_usage_screen.dart';
+import '../achievements_screen.dart';
+import '../challenges_screen.dart';
 
 class ProfileScreen extends StatefulWidget {
   const ProfileScreen({super.key});
@@ -819,6 +826,65 @@ class _ProfileScreenState extends State<ProfileScreen>
   Widget _buildSettingsGroups() {
     return Column(
       children: [
+        _buildSettingsGroup("Мій прогрес", Icons.emoji_events_outlined, [
+          _settingsItem(
+            Icons.emoji_events,
+            "Досягнення",
+            trailing: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+              decoration: BoxDecoration(
+                color: Colors.amberAccent.withValues(alpha: 0.15),
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(
+                  color: Colors.amberAccent.withValues(alpha: 0.25),
+                ),
+              ),
+              child: const Text(
+                "NEW",
+                style: TextStyle(
+                  color: Colors.amberAccent,
+                  fontSize: 10,
+                  fontWeight: FontWeight.bold,
+                  letterSpacing: 0.5,
+                ),
+              ),
+            ),
+            onTap: () => Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (context) => const AchievementsScreen(),
+              ),
+            ),
+          ),
+          _settingsItem(
+            Icons.flag,
+            "Челенджі",
+            trailing: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+              decoration: BoxDecoration(
+                color: Colors.redAccent.withValues(alpha: 0.15),
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(
+                  color: Colors.redAccent.withValues(alpha: 0.25),
+                ),
+              ),
+              child: const Text(
+                "NEW",
+                style: TextStyle(
+                  color: Colors.redAccent,
+                  fontSize: 10,
+                  fontWeight: FontWeight.bold,
+                  letterSpacing: 0.5,
+                ),
+              ),
+            ),
+            onTap: () => Navigator.push(
+              context,
+              MaterialPageRoute(builder: (context) => const ChallengesScreen()),
+            ),
+          ),
+        ]),
+        const SizedBox(height: 16),
         _buildSettingsGroup(
           "Сповіщення і звуки",
           Icons.notifications_outlined,
@@ -826,7 +892,12 @@ class _ProfileScreenState extends State<ProfileScreen>
             _settingsItem(
               Icons.notifications_outlined,
               "Сповіщення",
-              onTap: () {},
+              onTap: () => Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => const NotificationsSettingsScreen(),
+                ),
+              ),
             ),
             _settingsItem(Icons.volume_up_outlined, "Звуки", onTap: () {}),
           ],
@@ -845,12 +916,26 @@ class _ProfileScreenState extends State<ProfileScreen>
           _settingsItem(
             Icons.storage_rounded,
             "Керування сховищем",
-            onTap: () {},
+            onTap: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => const StorageManagementScreen(),
+                ),
+              );
+            },
           ),
           _settingsItem(
             Icons.data_usage_rounded,
             "Використання даних",
-            onTap: () {},
+            onTap: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => const DataUsageScreen(),
+                ),
+              );
+            },
           ),
         ]),
         const SizedBox(height: 16),
@@ -858,9 +943,26 @@ class _ProfileScreenState extends State<ProfileScreen>
           _settingsItem(
             Icons.palette_outlined,
             "Тема оформлення",
-            onTap: () {},
+            onTap: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => const PersonalizationSettingsScreen(),
+                ),
+              );
+            },
           ),
           _settingsItem(Icons.wallpaper_rounded, "Фон чату", onTap: () {}),
+          _settingsItem(
+            Icons.view_quilt_outlined,
+            "Макет головного екрана",
+            onTap: () => Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (context) => const HomeLayoutSettingsScreen(),
+              ),
+            ),
+          ),
         ]),
         const SizedBox(height: 16),
         _buildSettingsGroup("Інше", Icons.info_outline, [

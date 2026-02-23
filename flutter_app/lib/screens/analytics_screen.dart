@@ -1,14 +1,14 @@
 import 'package:flutter/material.dart';
 import 'package:fl_chart/fl_chart.dart';
 import 'package:shimmer/shimmer.dart';
-import 'package:shared_preferences/shared_preferences.dart';
+import 'package:hive_flutter/hive_flutter.dart';
 import '../services/auth_service.dart';
 import '../constants/app_colors.dart';
 import 'dart:convert';
 import 'dart:ui';
-import 'package:http/http.dart' as http;
 import 'package:intl/intl.dart';
 import 'pdf_template_screen.dart'; // Add import for PDF Export
+import 'weekly_report_screen.dart';
 
 class AnalyticsScreen extends StatefulWidget {
   const AnalyticsScreen({super.key});
@@ -75,41 +75,34 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
   // Actually, _avgCalories was used. We can compute it per metric.
 
   Future<void> _fetchFullAnalytics() async {
-    final prefs = await SharedPreferences.getInstance();
     final userId = await AuthService.getStoredUserId();
     if (userId == null) return;
 
-    // Очищуємо старий кеш після оновлення бекенду
-    await prefs.remove('cache_analytics_status_$userId');
-    await prefs.remove('cache_analytics_history_$userId');
-    await prefs.remove('cache_analytics_tips_$userId');
+    final box = Hive.box('offlineDataBox');
 
+    // 1. Спочатку спробуємо показати кешовані дані миттєво
+    final cachedStatus = box.get('cached_status_$userId') as String?;
+    final cachedHistory =
+        box.get('cached_analytics_history_$userId') as String?;
+
+    if (cachedStatus != null && cachedHistory != null) {
+      debugPrint('📦 ANALYTICS -> Показуємо кешовані дані');
+      _processData(jsonDecode(cachedStatus), jsonDecode(cachedHistory), null);
+    }
+
+    // 2. Потім оновлюємо з сервера у фоні
     try {
-      // --- ЗАПИТ НА СЕРВЕР ---
-      // --- ЗАПИТ НА СЕРВЕР ---
       debugPrint('📱 ANALYTICS -> Fetching for UserID: $userId');
       final responses = await Future.wait([
-        http.get(Uri.parse('${AuthService.baseUrl}/user_status/$userId')),
-        http.get(Uri.parse('${AuthService.baseUrl}/analytics/$userId')),
-        http.get(Uri.parse('${AuthService.baseUrl}/get_tips/$userId')),
+        AuthService.authGet('/user_status/$userId'),
+        AuthService.authGet('/analytics/$userId'),
+        AuthService.authGet('/get_tips/$userId'),
       ]);
 
       if (responses[0].statusCode == 200 && responses[1].statusCode == 200) {
-        // Зберігаємо в кеш
-        await prefs.setString(
-          'cache_analytics_status_$userId',
-          responses[0].body,
-        );
-        await prefs.setString(
-          'cache_analytics_history_$userId',
-          responses[1].body,
-        );
-        if (responses[2].statusCode == 200) {
-          await prefs.setString(
-            'cache_analytics_tips_$userId',
-            responses[2].body,
-          );
-        }
+        // Зберігаємо в Hive кеш (DataManager теж використовує ці ключі)
+        await box.put('cached_status_$userId', responses[0].body);
+        await box.put('cached_analytics_history_$userId', responses[1].body);
 
         // Оновлюємо UI свіжими даними
         _processData(
@@ -117,9 +110,14 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
           jsonDecode(responses[1].body),
           responses[2].statusCode == 200 ? jsonDecode(responses[2].body) : null,
         );
+      } else {
+        debugPrint(
+          '⚠️ Analytics: Server returned ${responses[0].statusCode} / ${responses[1].statusCode}',
+        );
+        if (mounted && _chartData.isEmpty) setState(() => _isLoading = false);
       }
     } catch (e) {
-      print('Analytics error: $e');
+      debugPrint('Analytics error: $e');
       if (mounted && _chartData.isEmpty) setState(() => _isLoading = false);
     }
   }
@@ -427,49 +425,77 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
                             ),
                           ],
                         ),
-                        // PDF Export Button
+                        // Action buttons
                         if (!_isLoading && _chartData.isNotEmpty)
-                          GestureDetector(
-                            onTap: () {
-                              final firstDay =
-                                  _chartData.last['dateObj'] as DateTime;
-                              final lastDay =
-                                  _chartData.first['dateObj'] as DateTime;
-
-                              Map<String, dynamic> historyData = {};
-                              for (var item in _chartData) {
-                                String dateKey = item['day'];
-                                historyData[dateKey] = {
-                                  'calories': item['calories'],
-                                  'water': item['water'],
-                                  'protein': item['protein'],
-                                  'fat': item['fat'],
-                                  'carbs': item['carbs'],
-                                };
-                              }
-
-                              Navigator.push(
-                                context,
-                                MaterialPageRoute(
-                                  builder: (context) => PdfTemplateScreen(
-                                    from: firstDay,
-                                    to: lastDay,
-                                    historyData: historyData,
-                                    statusData: _data,
+                          Row(
+                            children: [
+                              // Weekly Report Button
+                              GestureDetector(
+                                onTap: () {
+                                  Navigator.push(
+                                    context,
+                                    MaterialPageRoute(
+                                      builder: (context) =>
+                                          const WeeklyReportScreen(),
+                                    ),
+                                  );
+                                },
+                                child: _glassCard(
+                                  padding: const EdgeInsets.all(10),
+                                  borderRadius: 50,
+                                  glowColor: Colors.cyanAccent,
+                                  child: const Icon(
+                                    Icons.bar_chart_rounded,
+                                    color: Colors.cyanAccent,
+                                    size: 22,
                                   ),
                                 ),
-                              );
-                            },
-                            child: _glassCard(
-                              padding: const EdgeInsets.all(10),
-                              borderRadius: 50,
-                              glowColor: AppColors.primaryColor,
-                              child: Icon(
-                                Icons.picture_as_pdf_rounded,
-                                color: AppColors.primaryColor,
-                                size: 22,
                               ),
-                            ),
+                              const SizedBox(width: 8),
+                              // PDF Export Button
+                              GestureDetector(
+                                onTap: () {
+                                  final firstDay =
+                                      _chartData.last['dateObj'] as DateTime;
+                                  final lastDay =
+                                      _chartData.first['dateObj'] as DateTime;
+
+                                  Map<String, dynamic> historyData = {};
+                                  for (var item in _chartData) {
+                                    String dateKey = item['day'];
+                                    historyData[dateKey] = {
+                                      'calories': item['calories'],
+                                      'water': item['water'],
+                                      'protein': item['protein'],
+                                      'fat': item['fat'],
+                                      'carbs': item['carbs'],
+                                    };
+                                  }
+
+                                  Navigator.push(
+                                    context,
+                                    MaterialPageRoute(
+                                      builder: (context) => PdfTemplateScreen(
+                                        from: firstDay,
+                                        to: lastDay,
+                                        historyData: historyData,
+                                        statusData: _data,
+                                      ),
+                                    ),
+                                  );
+                                },
+                                child: _glassCard(
+                                  padding: const EdgeInsets.all(10),
+                                  borderRadius: 50,
+                                  glowColor: AppColors.primaryColor,
+                                  child: Icon(
+                                    Icons.picture_as_pdf_rounded,
+                                    color: AppColors.primaryColor,
+                                    size: 22,
+                                  ),
+                                ),
+                              ),
+                            ],
                           ),
                       ],
                     ),

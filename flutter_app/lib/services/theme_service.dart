@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'dart:ui';
 import 'package:shared_preferences/shared_preferences.dart';
 
 class ThemeService {
@@ -20,9 +21,17 @@ class ThemeService {
 
   Color get primaryColor => primaryColorNotifier.value;
 
-  // --- DARK MODE ---
-  ValueNotifier<bool> isDarkModeNotifier = ValueNotifier<bool>(true);
-  bool get isDarkMode => isDarkModeNotifier.value;
+  // --- THEME MODE ---
+  ValueNotifier<ThemeMode> themeModeNotifier = ValueNotifier<ThemeMode>(
+    ThemeMode.system,
+  );
+
+  bool get isDarkMode {
+    if (themeModeNotifier.value == ThemeMode.system) {
+      return PlatformDispatcher.instance.platformBrightness == Brightness.dark;
+    }
+    return themeModeNotifier.value == ThemeMode.dark;
+  }
 
   // Ініціалізація сервісу (завантаження збереженого кольору та теми)
   Future<void> init() async {
@@ -35,9 +44,9 @@ class ThemeService {
     }
 
     // Load Theme Mode
-    final bool? darkMode = prefs.getBool('theme_is_dark_mode');
-    if (darkMode != null) {
-      isDarkModeNotifier.value = darkMode;
+    final int? themeModeIndex = prefs.getInt('theme_mode');
+    if (themeModeIndex != null) {
+      themeModeNotifier.value = ThemeMode.values[themeModeIndex];
     }
   }
 
@@ -48,11 +57,11 @@ class ThemeService {
     await prefs.setInt('theme_primary_color', color.value);
   }
 
-  // Перемикання теми
-  Future<void> toggleTheme(bool isDark) async {
-    isDarkModeNotifier.value = isDark;
+  // Перемикання режиму теми
+  Future<void> setThemeMode(ThemeMode mode) async {
+    themeModeNotifier.value = mode;
     final prefs = await SharedPreferences.getInstance();
-    await prefs.setBool('theme_is_dark_mode', isDark);
+    await prefs.setInt('theme_mode', mode.index);
   }
 
   // Список доступних кольорів для вибору

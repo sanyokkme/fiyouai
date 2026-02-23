@@ -5,6 +5,7 @@ import 'package:http/http.dart' as http;
 import 'package:shimmer/shimmer.dart'; // Переконайся, що пакет shimmer є в pubspec.yaml
 import '../../services/auth_service.dart';
 import '../constants/app_colors.dart';
+import 'barcode_scanner_screen.dart';
 
 class FoodSearchScreen extends StatefulWidget {
   const FoodSearchScreen({super.key});
@@ -84,6 +85,83 @@ class _FoodSearchScreenState extends State<FoodSearchScreen> {
     }
   }
 
+  Future<void> _scanBarcode() async {
+    final barcode = await Navigator.push(
+      context,
+      MaterialPageRoute(builder: (context) => const BarcodeScannerScreen()),
+    );
+
+    if (barcode != null && barcode is String) {
+      _lookupBarcode(barcode);
+    }
+  }
+
+  Future<void> _lookupBarcode(String barcode) async {
+    if (!mounted) return;
+    setState(() => _isLoading = true);
+
+    try {
+      final res = await http.get(
+        Uri.parse(
+          'https://world.openfoodfacts.org/api/v0/product/$barcode.json',
+        ),
+      );
+      if (res.statusCode == 200) {
+        final data = jsonDecode(res.body);
+        if (data['status'] == 1 && data['product'] != null) {
+          final product = data['product'];
+          final nutriments = product['nutriments'] ?? {};
+
+          final Map<String, dynamic> item = {
+            'id': barcode,
+            'name': product['product_name'] ?? 'Невідомий продукт',
+            'calories': ((nutriments['energy-kcal_100g'] as num?) ?? 0).round(),
+            'protein': ((nutriments['proteins_100g'] as num?) ?? 0.0)
+                .toDouble(),
+            'fat': ((nutriments['fat_100g'] as num?) ?? 0.0).toDouble(),
+            'carbs': ((nutriments['carbohydrates_100g'] as num?) ?? 0.0)
+                .toDouble(),
+            'source': 'global',
+          };
+
+          setState(() {
+            _searchResults = [item];
+          });
+
+          _showWeightDialog(item);
+        } else {
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content: Text(
+                  'Продукт не знайдено за цим штрихкодом',
+                  style: TextStyle(color: Colors.white),
+                ),
+                backgroundColor: Colors.red,
+              ),
+            );
+          }
+        }
+      } else {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text(
+                'Помилка сервера',
+                style: TextStyle(color: Colors.white),
+              ),
+              backgroundColor: Colors.red,
+            ),
+          );
+        }
+      }
+    } catch (e) {
+      debugPrint("Barcode Error: $e");
+    } finally {
+      if (mounted) setState(() => _isLoading = false);
+    }
+  }
+
   Future<bool> _addFood(Map<String, dynamic> product, int weight) async {
     final userId = await AuthService.getStoredUserId();
     if (userId == null) {
@@ -133,11 +211,7 @@ class _FoodSearchScreenState extends State<FoodSearchScreen> {
     try {
       debugPrint("Sending data: $mealData");
 
-      final res = await http.post(
-        Uri.parse('${AuthService.baseUrl}/add_manual_meal'),
-        headers: {'Content-Type': 'application/json'},
-        body: jsonEncode(mealData),
-      );
+      final res = await AuthService.authPost('/add_manual_meal', mealData);
 
       debugPrint("Response status: ${res.statusCode}");
       debugPrint("Response body: ${res.body}");
@@ -177,17 +251,13 @@ class _FoodSearchScreenState extends State<FoodSearchScreen> {
     required double carbs,
   }) async {
     try {
-      final res = await http.post(
-        Uri.parse('${AuthService.baseUrl}/add_custom_food_product'),
-        headers: {'Content-Type': 'application/json'},
-        body: jsonEncode({
-          'name': name,
-          'calories': calories,
-          'protein': protein,
-          'fat': fat,
-          'carbs': carbs,
-        }),
-      );
+      final res = await AuthService.authPost('/add_custom_food_product', {
+        'name': name,
+        'calories': calories,
+        'protein': protein,
+        'fat': fat,
+        'carbs': carbs,
+      });
 
       if (res.statusCode == 200) {
         return true;
@@ -890,6 +960,16 @@ class _FoodSearchScreenState extends State<FoodSearchScreen> {
                                 size: 20,
                               ),
                             ),
+                          const SizedBox(width: 8),
+                          GestureDetector(
+                            onTap: _scanBarcode,
+                            child: const Icon(
+                              Icons.qr_code_scanner,
+                              color: Colors.blueAccent,
+                              size: 22,
+                            ),
+                          ),
+                          const SizedBox(width: 8),
                         ],
                       ),
                     ),

@@ -12,6 +12,8 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:share_plus/share_plus.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:hive_flutter/hive_flutter.dart';
+import 'package:intl/intl.dart';
 
 // Імпорти сервісів
 import 'package:flutter_app/services/data_manager.dart';
@@ -20,6 +22,7 @@ import 'package:flutter_app/services/notification_service.dart';
 
 // Імпорти констант
 import 'package:flutter_app/constants/app_colors.dart';
+import 'package:flutter_app/services/home_layout_service.dart';
 import 'package:fl_chart/fl_chart.dart'; // Add fl_chart import
 
 // Імпорти віджетів
@@ -29,7 +32,7 @@ import 'package:animations/animations.dart';
 // Імпорти екранів
 // import 'package:flutter_app/screens/story_view_screen.dart'; // Unused
 import 'package:flutter_app/screens/all_vitamins_screen.dart';
-import 'package:flutter_app/screens/sleep_calculator_screen.dart';
+import 'package:flutter_app/screens/smart_sleep_screen.dart';
 import 'package:flutter_app/screens/weight_tracker_screen.dart';
 import 'package:flutter_app/screens/day_stats_screen.dart';
 import 'package:flutter_app/screens/pdf_template_screen.dart';
@@ -247,12 +250,13 @@ class HomeScreenState extends State<HomeScreen>
 
   // Отримання даних про статус користувача
   Future<void> _fetchStatus({bool isPolling = false}) async {
-    final prefs = await SharedPreferences.getInstance();
     final userId = await AuthService.getStoredUserId();
     if (userId == null) return;
 
     if (!isPolling) {
-      String? cachedData = prefs.getString('cached_status_$userId');
+      String? cachedData = DataManager().getCachedDataSync(
+        'cached_status_$userId',
+      );
       if (cachedData != null && _status == null) {
         if (mounted) {
           setState(() {
@@ -274,7 +278,7 @@ class HomeScreenState extends State<HomeScreen>
         if (mounted && _status != null && !_isFirstNetworkLoad) {
           _checkForRemoteChanges(_status!, newData);
         }
-        await prefs.setString('cached_status_$userId', res.body);
+        await DataManager().saveCachedData('cached_status_$userId', res.body);
         if (mounted) {
           bool wasFirstLoad = _isFirstNetworkLoad;
           setState(() {
@@ -399,9 +403,55 @@ class HomeScreenState extends State<HomeScreen>
         "amount": amount,
         "created_at": timestamp,
       });
-      if (res.statusCode == 200) _fetchStatus();
+      if (res.statusCode == 200) {
+        _fetchStatus();
+        _updateLocalCacheWithWater(amount);
+      }
     } catch (e) {
       debugPrint("Water Error: $e");
+    }
+  }
+
+  Future<void> _updateLocalCacheWithWater(int amount) async {
+    try {
+      final userId = await AuthService.getStoredUserId();
+      if (userId == null) return;
+
+      final box = Hive.box('offlineDataBox');
+      final String cacheKey = 'cached_analytics_history_$userId';
+      final String? cachedStr = box.get(cacheKey) as String?;
+
+      List history = [];
+      if (cachedStr != null) {
+        history = jsonDecode(cachedStr);
+      }
+
+      final String today = DateFormat('yyyy-MM-dd').format(DateTime.now());
+      bool found = false;
+
+      for (var item in history) {
+        if (item['day'] == today) {
+          item['water'] = (item['water'] ?? 0) + amount;
+          found = true;
+          break;
+        }
+      }
+
+      if (!found) {
+        history.add({
+          'day': today,
+          'water': amount,
+          'calories': 0,
+          'protein': 0.0,
+          'fat': 0.0,
+          'carbs': 0.0,
+        });
+      }
+
+      await box.put(cacheKey, jsonEncode(history));
+      debugPrint("📦 Hive: Оновлено кеш історії (вода + $amount)");
+    } catch (e) {
+      debugPrint("⚠️ Hive Cache Update Error: $e");
     }
   }
 
@@ -546,6 +596,42 @@ class HomeScreenState extends State<HomeScreen>
     }
   }
 
+  List<Widget> _buildHomeWidgets(Map<String, dynamic> currentData) {
+    List<Widget> renderedWidgets = [];
+    final order = List<String>.from(HomeLayoutService().orderNotifier.value);
+    for (String key in order) {
+      switch (key) {
+        case 'dashboard_stats':
+          renderedWidgets.add(_buildDashboardStats(currentData));
+          break;
+        case 'mood_tracker':
+          renderedWidgets.add(_buildMoodTracker());
+          break;
+        case 'water_tracker':
+          renderedWidgets.add(
+            _buildWaterTracker(
+              _dayAnimController.isAnimating
+                  ? _displayWater.round()
+                  : currentData['water'] ?? 0,
+              currentData['water_target'] ?? 2000,
+            ),
+          );
+          break;
+        case 'sleep_calculator':
+          renderedWidgets.add(_buildSleepCalculatorCard());
+          break;
+        case 'vitamins_section':
+          renderedWidgets.add(_buildVitaminsSection());
+          break;
+        case 'activity_timeline':
+          renderedWidgets.add(_buildActivityTimeline());
+          break;
+      }
+      renderedWidgets.add(const SizedBox(height: 24));
+    }
+    return renderedWidgets;
+  }
+
   @override
   Widget build(BuildContext context) {
     if (_isLoading && _status == null) {
@@ -596,22 +682,19 @@ class HomeScreenState extends State<HomeScreen>
                               child: Column(
                                 crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
-                                  _buildDashboardStats(currentData),
-                                  const SizedBox(height: 24),
-                                  _buildMoodTracker(),
-                                  const SizedBox(height: 24),
-                                  _buildWaterTracker(
-                                    _dayAnimController.isAnimating
-                                        ? _displayWater.round()
-                                        : currentData['water'] ?? 0,
-                                    currentData['water_target'] ?? 2000,
+                                  ValueListenableBuilder<List<String>>(
+                                    valueListenable:
+                                        HomeLayoutService().orderNotifier,
+                                    builder: (context, _, child) {
+                                      return Column(
+                                        crossAxisAlignment:
+                                            CrossAxisAlignment.start,
+                                        children: [
+                                          ..._buildHomeWidgets(currentData),
+                                        ],
+                                      );
+                                    },
                                   ),
-                                  const SizedBox(height: 24),
-                                  _buildSleepCalculatorCard(),
-                                  const SizedBox(height: 24),
-                                  _buildVitaminsSection(),
-                                  const SizedBox(height: 24),
-                                  _buildActivityTimeline(),
                                   const SizedBox(height: 40),
                                 ],
                               ),
@@ -2919,7 +3002,7 @@ class HomeScreenState extends State<HomeScreen>
     return GestureDetector(
       onTap: () => Navigator.push(
         context,
-        MaterialPageRoute(builder: (context) => const SleepCalculatorScreen()),
+        MaterialPageRoute(builder: (context) => const SmartSleepScreen()),
       ),
       child: ClipRRect(
         borderRadius: BorderRadius.circular(28),
@@ -3526,81 +3609,90 @@ class HomeScreenState extends State<HomeScreen>
             final isLast = i == _activityTimeline.length - 1;
             final color = item['color'] as Color;
 
-            return IntrinsicHeight(
-              child: Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  // Icon node
-                  SizedBox(
-                    width: 32,
-                    child: Column(
-                      children: [
-                        Container(
-                          width: 28,
-                          height: 28,
-                          decoration: BoxDecoration(
-                            color: color.withValues(alpha: 0.15),
-                            borderRadius: BorderRadius.circular(10),
-                            border: Border.all(
-                              color: color.withValues(alpha: 0.3),
-                            ),
-                          ),
-                          child: Icon(
-                            item['icon'] as IconData,
-                            color: color,
-                            size: 14,
-                          ),
+            return Stack(
+              children: [
+                if (!isLast)
+                  Positioned(
+                    top: 28, // Begin line after the icon (icon is 28)
+                    bottom:
+                        0, // Extend to the bottom of the Stack (which is sized by the Row)
+                    left:
+                        15.25, // Center the 1.5 width line within the 32 width icon container
+                    child: Container(
+                      width: 1.5,
+                      margin: const EdgeInsets.symmetric(vertical: 4),
+                      decoration: BoxDecoration(
+                        gradient: LinearGradient(
+                          begin: Alignment.topCenter,
+                          end: Alignment.bottomCenter,
+                          colors: [
+                            color.withValues(alpha: 0.3),
+                            Colors.white.withValues(alpha: 0.05),
+                          ],
                         ),
-                        if (!isLast)
-                          Expanded(
-                            child: Container(
-                              width: 1.5,
-                              margin: const EdgeInsets.symmetric(vertical: 4),
-                              decoration: BoxDecoration(
-                                gradient: LinearGradient(
-                                  begin: Alignment.topCenter,
-                                  end: Alignment.bottomCenter,
-                                  colors: [
-                                    color.withValues(alpha: 0.3),
-                                    Colors.white.withValues(alpha: 0.05),
-                                  ],
-                                ),
-                              ),
-                            ),
-                          ),
-                      ],
-                    ),
-                  ),
-                  const SizedBox(width: 12),
-                  // Content
-                  Expanded(
-                    child: Padding(
-                      padding: EdgeInsets.only(bottom: isLast ? 0 : 16),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            item['title'] as String,
-                            style: const TextStyle(
-                              color: Colors.white,
-                              fontSize: 14,
-                              fontWeight: FontWeight.w600,
-                            ),
-                          ),
-                          const SizedBox(height: 2),
-                          Text(
-                            item['subtitle'] as String,
-                            style: TextStyle(
-                              color: Colors.white.withValues(alpha: 0.55),
-                              fontSize: 12,
-                            ),
-                          ),
-                        ],
                       ),
                     ),
                   ),
-                ],
-              ),
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    // Icon node
+                    Container(
+                      width: 32,
+                      alignment: Alignment.topCenter,
+                      child: Container(
+                        width: 28,
+                        height: 28,
+                        decoration: BoxDecoration(
+                          color: color.withValues(alpha: 0.15),
+                          borderRadius: BorderRadius.circular(10),
+                          border: Border.all(
+                            color: color.withValues(alpha: 0.3),
+                          ),
+                        ),
+                        child: Icon(
+                          item['icon'] as IconData,
+                          color: color,
+                          size: 14,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    // Content
+                    Expanded(
+                      child: Padding(
+                        padding: EdgeInsets.only(bottom: isLast ? 0 : 16),
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              item['title'] as String,
+                              style: const TextStyle(
+                                color: Colors.white,
+                                fontSize: 14,
+                                fontWeight: FontWeight.w600,
+                              ),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                            const SizedBox(height: 2),
+                            Text(
+                              item['subtitle'] as String,
+                              style: TextStyle(
+                                color: Colors.white54,
+                                fontSize: 12,
+                              ),
+                              maxLines: 2,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ],
             );
           }),
         ],
@@ -3673,11 +3765,13 @@ class HomeScreenState extends State<HomeScreen>
                         duration: const Duration(milliseconds: 1500),
                         curve: Curves.easeOutCubic,
                         builder: (context, fillHeight, child) {
+                          // Enhanced Water Animation
                           return CustomPaint(
                             painter: WaterWavePainter(
                               fillHeight: fillHeight,
                               wavePhase: _waveController.value,
-                              color: Colors.blueAccent.withValues(alpha: 0.1),
+                              color: Colors
+                                  .blueAccent, // Use full color base, painter will handle alphas
                               backgroundColor: Colors.transparent,
                             ),
                           );
@@ -4795,34 +4889,38 @@ class WaterWavePainter extends CustomPainter {
 
     final baseY = size.height - effectiveHeight;
 
-    final wavePaint1 = Paint()..color = color;
-    final wavePaint2 = Paint()..color = color.withValues(alpha: 0.6);
-    final wavePaint3 = Paint()..color = color.withValues(alpha: 0.3);
+    // Vibrant liquid colors
+    final wavePaint1 = Paint()..color = color.withValues(alpha: 0.5);
+    final wavePaint2 = Paint()..color = color.withValues(alpha: 0.35);
+    final wavePaint3 = Paint()..color = color.withValues(alpha: 0.2);
+
+    // Make the waves more dynamic and liquid
+    final baseWaveHeight = 15.0;
 
     _drawWave(
       canvas,
       size,
       baseHeight: baseY,
-      waveHeight: 12,
-      waveLength: size.width,
+      waveHeight: baseWaveHeight,
+      waveLength: size.width * 1.1,
       phase: wavePhase,
       paint: wavePaint1,
     );
     _drawWave(
       canvas,
       size,
-      baseHeight: baseY + 5,
-      waveHeight: 15,
-      waveLength: size.width * 1.4,
+      baseHeight: baseY + baseWaveHeight / 1.5,
+      waveHeight: baseWaveHeight * 1.3,
+      waveLength: size.width * 1.5,
       phase: wavePhase + 0.3,
       paint: wavePaint2,
     );
     _drawWave(
       canvas,
       size,
-      baseHeight: baseY - 5,
-      waveHeight: 8,
-      waveLength: size.width * 0.8,
+      baseHeight: baseY - baseWaveHeight / 2,
+      waveHeight: baseWaveHeight * 0.8,
+      waveLength: size.width * 0.9,
       phase: wavePhase + 0.7,
       paint: wavePaint3,
     );

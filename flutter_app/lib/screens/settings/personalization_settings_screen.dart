@@ -12,8 +12,6 @@ class PersonalizationSettingsScreen extends StatefulWidget {
 
 class _PersonalizationSettingsScreenState
     extends State<PersonalizationSettingsScreen> {
-  String _selectedLanguage = 'Українська';
-
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -36,12 +34,18 @@ class _PersonalizationSettingsScreenState
                       ),
                       onPressed: () => Navigator.pop(context),
                     ),
-                    Text(
-                      'Персоналізація',
-                      style: TextStyle(
-                        fontSize: 32,
-                        fontWeight: FontWeight.bold,
-                        color: AppColors.textWhite,
+                    Expanded(
+                      child: FittedBox(
+                        fit: BoxFit.scaleDown,
+                        alignment: Alignment.centerLeft,
+                        child: Text(
+                          'Тема оформлення',
+                          style: TextStyle(
+                            fontSize: 32,
+                            fontWeight: FontWeight.bold,
+                            color: AppColors.textWhite,
+                          ),
+                        ),
                       ),
                     ),
                   ],
@@ -124,33 +128,30 @@ class _PersonalizationSettingsScreenState
                         },
                       ),
 
-                      _buildOptionTile(
-                        title: 'Мова',
-                        subtitle: _selectedLanguage,
-                        icon: Icons.language_outlined,
-                        onTap: () {
-                          _showLanguageDialog();
-                        },
-                      ),
-
-                      _buildSwitchTile(
-                        title: 'Темна тема',
-                        subtitle: 'Використовувати темний режим',
-                        icon: Icons.dark_mode_outlined,
-                        value: ThemeService().isDarkMode,
-                        onChanged: (val) {
-                          setState(() {
-                            ThemeService().toggleTheme(val);
-                          });
-                        },
-                      ),
-
-                      _buildOptionTile(
-                        title: 'Одиниці виміру',
-                        subtitle: 'Метрична система (кг, см)',
-                        icon: Icons.straighten_outlined,
-                        onTap: () {
-                          // TODO: Implement units selection
+                      ValueListenableBuilder<ThemeMode>(
+                        valueListenable: ThemeService().themeModeNotifier,
+                        builder: (context, themeMode, _) {
+                          String themeText = '';
+                          IconData themeIcon = Icons.brightness_auto;
+                          switch (themeMode) {
+                            case ThemeMode.system:
+                              themeText = 'Системна';
+                              themeIcon = Icons.brightness_auto;
+                            case ThemeMode.light:
+                              themeText = 'Світла';
+                              themeIcon = Icons.light_mode;
+                            case ThemeMode.dark:
+                              themeText = 'Темна';
+                              themeIcon = Icons.dark_mode;
+                          }
+                          return _buildOptionTile(
+                            title: 'Оформлення',
+                            subtitle: themeText,
+                            icon: themeIcon,
+                            onTap: () {
+                              _showThemeModeDialog(themeMode);
+                            },
+                          );
                         },
                       ),
                     ],
@@ -224,88 +225,37 @@ class _PersonalizationSettingsScreenState
     );
   }
 
-  Widget _buildSwitchTile({
-    required String title,
-    required String subtitle,
-    required IconData icon,
-    required bool value,
-    required ValueChanged<bool> onChanged,
-  }) {
-    return Container(
-      margin: const EdgeInsets.only(bottom: 15),
-      padding: const EdgeInsets.all(18),
-      decoration: BoxDecoration(
-        color: AppColors.cardColor,
-        borderRadius: BorderRadius.circular(15),
-        border: Border.all(color: AppColors.cardColor),
-      ),
-      child: Row(
-        children: [
-          Icon(icon, color: AppColors.primaryColor, size: 24),
-          const SizedBox(width: 16),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  title,
-                  style: TextStyle(
-                    color: AppColors.textWhite,
-                    fontSize: 16,
-                    fontWeight: FontWeight.w500,
-                  ),
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  subtitle,
-                  style: TextStyle(
-                    color: AppColors.textSecondary,
-                    fontSize: 13,
-                  ),
-                ),
-              ],
-            ),
-          ),
-          Switch(
-            value: value,
-            onChanged: onChanged,
-            activeThumbColor: AppColors.primaryColor,
-          ),
-        ],
-      ),
-    );
-  }
-
-  void _showLanguageDialog() {
+  void _showThemeModeDialog(ThemeMode currentMode) {
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
         backgroundColor: AppColors.cardColor,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-        title: Text(
-          'Оберіть мову',
-          style: TextStyle(color: AppColors.textWhite),
-        ),
+        title: Text('Оформлення', style: TextStyle(color: AppColors.textWhite)),
         content: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            _buildLanguageOption('Українська'),
-            _buildLanguageOption('English'),
-            _buildLanguageOption('Polski'),
+            _buildThemeOption('Системна', ThemeMode.system, currentMode),
+            _buildThemeOption('Світла', ThemeMode.light, currentMode),
+            _buildThemeOption('Темна', ThemeMode.dark, currentMode),
           ],
         ),
       ),
     );
   }
 
-  Widget _buildLanguageOption(String language) {
-    return RadioListTile<String>(
-      title: Text(language, style: TextStyle(color: AppColors.textWhite)),
-      value: language,
-      groupValue: _selectedLanguage,
+  Widget _buildThemeOption(
+    String title,
+    ThemeMode mode,
+    ThemeMode currentMode,
+  ) {
+    return RadioListTile<ThemeMode>(
+      title: Text(title, style: TextStyle(color: AppColors.textWhite)),
+      value: mode,
+      groupValue: currentMode,
       activeColor: AppColors.primaryColor,
       onChanged: (value) {
-        setState(() => _selectedLanguage = value!);
+        ThemeService().setThemeMode(value!);
         Navigator.pop(context);
       },
     );

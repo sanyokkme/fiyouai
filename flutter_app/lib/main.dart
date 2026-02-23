@@ -2,10 +2,14 @@ import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:flutter_app/services/notification_service.dart';
 import 'package:flutter_app/services/theme_service.dart';
+import 'package:flutter_app/services/home_layout_service.dart';
+import 'package:flutter_app/services/offline_sync_service.dart';
+import 'package:hive_flutter/hive_flutter.dart';
 
 import 'package:shared_preferences/shared_preferences.dart';
 
 import 'package:flutter_app/constants/app_fonts.dart';
+import 'package:flutter_app/services/auth_service.dart';
 
 // Імпорти екранів
 import 'screens/welcome_screen.dart';
@@ -19,6 +23,11 @@ import 'screens/camera_screen.dart';
 import 'screens/recipe_book_screen.dart';
 import 'screens/food_search_screen.dart';
 import 'screens/error_screen.dart';
+import 'screens/achievements_screen.dart';
+import 'screens/weekly_report_screen.dart';
+import 'screens/meal_planner_screen.dart';
+import 'screens/challenges_screen.dart';
+import 'screens/smart_sleep_screen.dart';
 
 // Глобальний ключ для навігації з будь-якого місця (потрібен для показу екрану помилок)
 final GlobalKey<NavigatorState> globalNavigatorKey =
@@ -32,15 +41,44 @@ void main() async {
     // Ініціалізація сервісу теми
     await ThemeService().init();
 
+    // Ініціалізація бази даних Hive для Offline Mode
+    await Hive.initFlutter();
+    await Hive.openBox('offlineDataBox');
+
+    // Ініціалізація офлайн-черги
+    await OfflineSyncService().init();
+
     // Ініціалізація сповіщень
     await NotificationService().init();
     await NotificationService().requestPermissions();
+
+    // Ініціалізація макета головного екрана
+    await HomeLayoutService().init();
 
     // 2. Ініціалізація камер
     initCameras().then((_) => debugPrint("Cameras initialized"));
 
     final prefs = await SharedPreferences.getInstance();
     final String? userId = prefs.getString('user_id');
+
+    // If user is logged in, proactively try to refresh the session
+    // This prevents stale tokens from causing 401 cascades on app resume
+    bool sessionValid = false;
+    if (userId != null && userId.isNotEmpty) {
+      final refreshToken = prefs.getString('refresh_token');
+      if (refreshToken != null) {
+        sessionValid = await AuthService.refreshSession();
+        if (!sessionValid) {
+          debugPrint(
+            "⚠️ Startup: Session refresh failed. Redirecting to login.",
+          );
+        } else {
+          debugPrint("✅ Startup: Session refreshed successfully.");
+        }
+      }
+    }
+
+    final bool isLoggedIn = userId != null && userId.isNotEmpty && sessionValid;
 
     // Перевизначення глобального обробника помилок Flutter (для помилок рендерингу/віджетів)
     ErrorWidget.builder = (FlutterErrorDetails details) {
@@ -60,7 +98,7 @@ void main() async {
       return true;
     };
 
-    runApp(MyApp(isLoggedIn: userId != null && userId.isNotEmpty));
+    runApp(MyApp(isLoggedIn: isLoggedIn));
   } catch (e, stackTrace) {
     debugPrint("CRITICAL STARTUP ERROR: $e");
     debugPrint(stackTrace.toString());
@@ -94,17 +132,14 @@ class MyApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return ValueListenableBuilder<bool>(
-      valueListenable: ThemeService().isDarkModeNotifier,
-      builder: (context, isDark, child) {
+    return ValueListenableBuilder<ThemeMode>(
+      valueListenable: ThemeService().themeModeNotifier,
+      builder: (context, themeMode, child) {
         return ValueListenableBuilder<Color>(
           valueListenable: ThemeService().primaryColorNotifier,
           builder: (context, primaryColor, child) {
-            return MaterialApp(
-              navigatorKey: globalNavigatorKey,
-              debugShowCheckedModeBanner: false,
-              title: 'NutritionAI',
-              theme: ThemeData(
+            ThemeData buildTheme(bool isDark) {
+              return ThemeData(
                 brightness: isDark ? Brightness.dark : Brightness.light,
                 pageTransitionsTheme: const PageTransitionsTheme(
                   builders: {
@@ -121,7 +156,6 @@ class MyApp extends StatelessWidget {
                       bodyColor: isDark ? Colors.white : Colors.black,
                       displayColor: isDark ? Colors.white : Colors.black,
                     ),
-                // Додаємо стиль для кнопок, щоб він був універсальним
                 elevatedButtonTheme: ElevatedButtonThemeData(
                   style: ElevatedButton.styleFrom(
                     backgroundColor: primaryColor,
@@ -140,7 +174,16 @@ class MyApp extends StatelessWidget {
                         secondary: primaryColor,
                         surface: const Color(0xFFFFFFFF),
                       ),
-              ),
+              );
+            }
+
+            return MaterialApp(
+              navigatorKey: globalNavigatorKey,
+              debugShowCheckedModeBanner: false,
+              title: 'NutritionAI',
+              themeMode: themeMode,
+              theme: buildTheme(false),
+              darkTheme: buildTheme(true),
 
               // Початковий екран залежно від сесії
               home: isLoggedIn ? const MainScreen() : const WelcomeScreen(),
@@ -203,6 +246,26 @@ class MyApp extends StatelessWidget {
                   case '/food_search':
                     return MaterialPageRoute(
                       builder: (_) => const FoodSearchScreen(),
+                    );
+                  case '/achievements':
+                    return MaterialPageRoute(
+                      builder: (_) => const AchievementsScreen(),
+                    );
+                  case '/weekly_report':
+                    return MaterialPageRoute(
+                      builder: (_) => const WeeklyReportScreen(),
+                    );
+                  case '/meal_planner':
+                    return MaterialPageRoute(
+                      builder: (_) => const MealPlannerScreen(),
+                    );
+                  case '/challenges':
+                    return MaterialPageRoute(
+                      builder: (_) => const ChallengesScreen(),
+                    );
+                  case '/smart_sleep':
+                    return MaterialPageRoute(
+                      builder: (_) => const SmartSleepScreen(),
                     );
                   case '/splash':
                     return MaterialPageRoute(builder: (_) => SplashScreen());

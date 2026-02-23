@@ -303,6 +303,26 @@ class _MainScreenState extends State<MainScreen> {
             ),
           ],
         ),
+        const SizedBox(height: 15),
+
+        // 🍽️ Meal Planner (food-related, fits center button)
+        Row(
+          children: [
+            Expanded(
+              child: _buildGridItem(
+                icon: Icons.restaurant_menu,
+                title: "Планування їжі",
+                color: Colors.deepPurpleAccent,
+                onTap: () {
+                  Navigator.pop(context);
+                  Navigator.pushNamed(context, '/meal_planner');
+                },
+              ),
+            ),
+            const SizedBox(width: 15),
+            const Expanded(child: SizedBox()),
+          ],
+        ),
       ],
     );
   }

@@ -1,5 +1,4 @@
-import 'package:http/http.dart' as http;
-import 'package:shared_preferences/shared_preferences.dart';
+import 'package:hive_flutter/hive_flutter.dart';
 import 'package:flutter/foundation.dart'; // Для debugPrint
 import 'auth_service.dart';
 
@@ -46,35 +45,11 @@ class DataManager {
     String cacheKey,
   ) async {
     try {
-      final token = await AuthService.getAccessToken();
-      final headers = token != null ? {'Authorization': 'Bearer $token'} : null;
-
-      final res = await http.get(
-        Uri.parse('${AuthService.baseUrl}$endpoint'),
-        headers: headers,
-      );
+      final res = await AuthService.authGet(endpoint);
 
       if (res.statusCode == 200) {
-        final prefs = await SharedPreferences.getInstance();
-        await prefs.setString(cacheKey, res.body);
-      } else if (res.statusCode == 401) {
-        debugPrint("🔄 Token expired for $endpoint. Attempting refresh...");
-        final success = await AuthService.refreshSession();
-        if (success) {
-          final newToken = await AuthService.getAccessToken();
-          final newHeaders = {'Authorization': 'Bearer $newToken'};
-          final retryRes = await http.get(
-            Uri.parse('${AuthService.baseUrl}$endpoint'),
-            headers: newHeaders,
-          );
-          if (retryRes.statusCode == 200) {
-            final prefs = await SharedPreferences.getInstance();
-            await prefs.setString(cacheKey, retryRes.body);
-            debugPrint("✅ Refresh successful for $endpoint");
-          }
-        } else {
-          debugPrint("❌ Refresh failed for $endpoint");
-        }
+        final box = Hive.box('offlineDataBox');
+        await box.put(cacheKey, res.body);
       } else {
         debugPrint(
           "⚠️ DataManager Backend Error ($endpoint): Status ${res.statusCode}",
@@ -87,51 +62,30 @@ class DataManager {
 
   // --- РОЗУМНА ЛОГІКА ПОРАД ---
   Future<void> _manageTipsLogic(String userId) async {
-    final prefs = await SharedPreferences.getInstance();
+    final box = Hive.box('offlineDataBox');
 
     // Перевіряємо, чи переглянув користувач попередні поради
     bool previouslyViewed =
-        prefs.getBool(keyTipsViewed) ??
+        box.get(keyTipsViewed) ??
         true; // За замовчуванням true, щоб при першому запуску згенерувало
-    String? existingTips = prefs.getString('${keyTips}_$userId');
+    String? existingTips = box.get('${keyTips}_$userId');
 
     // Якщо порад немає ВЗАГАЛІ або користувач їх вже ПЕРЕГЛЯНУВ -> Генеруємо нові
+    // ВАЖЛИВО: якщо existingTips == null, ЗАВЖДИ генеруємо (незалежно від прапорця viewed)
     if (existingTips == null || previouslyViewed) {
-      debugPrint("🤖 AI: Генерую нові поради, бо старі прочитані...");
+      debugPrint("🤖 AI: Генерую нові поради...");
 
       try {
-        final token = await AuthService.getAccessToken();
-        final headers = token != null
-            ? {'Authorization': 'Bearer $token'}
-            : null;
-
-        final res = await http.get(
-          Uri.parse('${AuthService.baseUrl}/get_tips/$userId'),
-          headers: headers,
-        );
+        final res = await AuthService.authGet('/get_tips/$userId');
 
         if (res.statusCode == 200) {
           // Зберігаємо нові поради
-          await prefs.setString('${keyTips}_$userId', res.body);
+          await box.put('${keyTips}_$userId', res.body);
           // Скидаємо прапорець перегляду (тепер у нас є нові, непрочитані)
-          await prefs.setBool(keyTipsViewed, false);
+          await box.put(keyTipsViewed, false);
           debugPrint("🤖 AI: Нові поради готові!");
-        } else if (res.statusCode == 401) {
-          debugPrint("🔄 Token expired for Tips. Attempting refresh...");
-          final success = await AuthService.refreshSession();
-          if (success) {
-            final newToken = await AuthService.getAccessToken();
-            final newHeaders = {'Authorization': 'Bearer $newToken'};
-            final retryRes = await http.get(
-              Uri.parse('${AuthService.baseUrl}/get_tips/$userId'),
-              headers: newHeaders,
-            );
-            if (retryRes.statusCode == 200) {
-              await prefs.setString('${keyTips}_$userId', retryRes.body);
-              await prefs.setBool(keyTipsViewed, false);
-              debugPrint("✅ AI: Нові поради готові (після рефрешу)!");
-            }
-          }
+        } else {
+          debugPrint("⚠️ AI Tips Error: Status ${res.statusCode}");
         }
       } catch (e) {
         debugPrint("AI Error: $e");
@@ -143,14 +97,24 @@ class DataManager {
 
   // Метод, який викликається, коли користувач відкрив екран порад
   Future<void> markTipsAsViewed() async {
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setBool(keyTipsViewed, true);
+    final box = Hive.box('offlineDataBox');
+    await box.put(keyTipsViewed, true);
     debugPrint("👀 User: Поради переглянуто. Наступного разу згенеруємо нові.");
   }
 
-  // --- ВАГА ---
+  // --- ДОДАТКОВІ МЕТОДИ КЕШУВАННЯ ---
+
+  String? getCachedDataSync(String key) {
+    var box = Hive.box('offlineDataBox');
+    return box.get(key) as String?;
+  }
+
+  Future<void> saveCachedData(String key, String data) async {
+    var box = Hive.box('offlineDataBox');
+    await box.put(key, data);
+  }
+
   Future<String?> getCachedWeightHistory(String userId) async {
-    final prefs = await SharedPreferences.getInstance();
-    return prefs.getString('cached_weight_history_$userId');
+    return getCachedDataSync('cached_weight_history_$userId');
   }
 }

@@ -1,13 +1,18 @@
 import 'dart:convert';
+import 'dart:io';
+import 'dart:async';
 import 'package:http/http.dart' as http;
+import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import '../main.dart'; // To access globalNavigatorKey
+import 'offline_sync_service.dart';
 
 class AuthService {
   // 1. Зробили змінну статичною, щоб мати до неї доступ з інших файлів
   static const String _prodUrl = 'https://fiyouai.onrender.com';
 
-  static const String _devUrl = 'http://172.20.10.3:8000';
+  static const String _devUrl = 'http://172.20.10.2:8000';
 
   // 3. Розумний геттер
   static String get baseUrl {
@@ -43,6 +48,8 @@ class AuthService {
     await prefs.setString('last_login', DateTime.now().toIso8601String());
   }
 
+  static Future<bool>? _refreshFuture;
+
   static Future<String?> getStoredUserId() async {
     final prefs = await SharedPreferences.getInstance();
     final rawId = prefs.getString('user_id');
@@ -68,7 +75,16 @@ class AuthService {
   }
 
   // ОНОВЛЕННЯ ТОКЕНА
-  static Future<bool> refreshSession() async {
+  static Future<bool> refreshSession() {
+    if (_refreshFuture != null) {
+      debugPrint("🔄 Token refresh already in progress, waiting...");
+      return _refreshFuture!;
+    }
+    _refreshFuture = _doRefreshSession();
+    return _refreshFuture!.whenComplete(() => _refreshFuture = null);
+  }
+
+  static Future<bool> _doRefreshSession() async {
     try {
       final refreshToken = await getRefreshToken();
       if (refreshToken == null) return false;
@@ -89,10 +105,22 @@ class AuthService {
           await prefs.setString('refresh_token', data['refresh_token']);
         }
         return true;
+      } else {
+        debugPrint(
+          "Token Refresh Failed! Status: ${res.statusCode}, Body: ${res.body}",
+        );
+        // If the refresh token is dead, clear the session so the app returns to login screen
+        await logout();
+        if (globalNavigatorKey.currentContext != null) {
+          // Push to /welcome to break the loop and force user to log in again
+          Navigator.of(
+            globalNavigatorKey.currentContext!,
+          ).pushNamedAndRemoveUntil('/welcome', (route) => false);
+        }
+        return false;
       }
-      return false;
     } catch (e) {
-      debugPrint("Token Refresh Error: $e");
+      debugPrint("Token Refresh Exception: $e");
       return false;
     }
   }
@@ -232,13 +260,25 @@ class AuthService {
   static Future<http.Response> authGet(String endpoint) async {
     final token = await getAccessToken();
     final url = Uri.parse('$baseUrl$endpoint');
-    final headers = {'Authorization': 'Bearer $token'};
+    var headers = {'Authorization': 'Bearer $token'};
 
     var response = await http.get(url, headers: headers);
 
     if (response.statusCode == 401) {
-      debugPrint("AuthService: 401 Unauthorized. Attempting refresh...");
-      final refreshed = await refreshSession();
+      // Check if token was refreshed by another concurrent request while we were waiting
+      final currentToken = await getAccessToken();
+      bool refreshed = false;
+
+      if (currentToken != null && currentToken != token) {
+        debugPrint(
+          "AuthService: Token was updated in the background. Retrying request directly...",
+        );
+        refreshed = true;
+      } else {
+        debugPrint("AuthService: 401 Unauthorized. Attempting refresh...");
+        refreshed = await refreshSession();
+      }
+
       if (refreshed) {
         final newToken = await getAccessToken();
         headers['Authorization'] = 'Bearer $newToken';
@@ -248,53 +288,127 @@ class AuthService {
     return response;
   }
 
-  static Future<http.Response> authPost(String endpoint, Object? body) async {
+  static Future<http.Response> authPost(
+    String endpoint,
+    Object? body, {
+    bool bypassQueue = false,
+  }) async {
     final token = await getAccessToken();
     final url = Uri.parse('$baseUrl$endpoint');
-    final headers = {
+    var headers = {
       'Content-Type': 'application/json',
       'Authorization': 'Bearer $token',
     };
 
-    var response = await http.post(
-      url,
-      headers: headers,
-      body: jsonEncode(body),
-    );
+    try {
+      var response = await http
+          .post(url, headers: headers, body: jsonEncode(body))
+          .timeout(const Duration(seconds: 10));
 
-    if (response.statusCode == 401) {
-      debugPrint("AuthService: 401 Unauthorized. Attempting refresh...");
-      final refreshed = await refreshSession();
-      if (refreshed) {
-        final newToken = await getAccessToken();
-        headers['Authorization'] = 'Bearer $newToken';
-        response = await http.post(
-          url,
-          headers: headers,
-          body: jsonEncode(body),
-        );
+      if (response.statusCode == 401) {
+        final currentToken = await getAccessToken();
+        bool refreshed = false;
+
+        if (currentToken != null && currentToken != token) {
+          debugPrint(
+            "AuthService: Token was updated in the background. Retrying POST directly...",
+          );
+          refreshed = true;
+        } else {
+          debugPrint(
+            "AuthService: 401 Unauthorized for POST. Attempting refresh...",
+          );
+          refreshed = await refreshSession();
+        }
+
+        if (refreshed) {
+          final newToken = await getAccessToken();
+          headers['Authorization'] = 'Bearer $newToken';
+          response = await http
+              .post(url, headers: headers, body: jsonEncode(body))
+              .timeout(const Duration(seconds: 10));
+        }
       }
+      return response;
+    } on SocketException catch (_) {
+      return _handleOffline('POST', endpoint, body, bypassQueue);
+    } on TimeoutException catch (_) {
+      return _handleOffline('POST', endpoint, body, bypassQueue);
+    } catch (e) {
+      if (!bypassQueue) {
+        return _handleOffline('POST', endpoint, body, bypassQueue);
+      }
+      rethrow;
     }
-    return response;
   }
 
-  static Future<http.Response> authDelete(String endpoint) async {
+  static Future<http.Response> authDelete(
+    String endpoint, {
+    bool bypassQueue = false,
+  }) async {
     final token = await getAccessToken();
     final url = Uri.parse('$baseUrl$endpoint');
-    final headers = {'Authorization': 'Bearer $token'};
+    var headers = {'Authorization': 'Bearer $token'};
 
-    var response = await http.delete(url, headers: headers);
+    try {
+      var response = await http
+          .delete(url, headers: headers)
+          .timeout(const Duration(seconds: 10));
 
-    if (response.statusCode == 401) {
-      debugPrint("AuthService: 401 Unauthorized. Attempting refresh...");
-      final refreshed = await refreshSession();
-      if (refreshed) {
-        final newToken = await getAccessToken();
-        headers['Authorization'] = 'Bearer $newToken';
-        response = await http.delete(url, headers: headers);
+      if (response.statusCode == 401) {
+        final currentToken = await getAccessToken();
+        bool refreshed = false;
+
+        if (currentToken != null && currentToken != token) {
+          refreshed = true;
+        } else {
+          refreshed = await refreshSession();
+        }
+
+        if (refreshed) {
+          final newToken = await getAccessToken();
+          headers['Authorization'] = 'Bearer $newToken';
+          response = await http
+              .delete(url, headers: headers)
+              .timeout(const Duration(seconds: 10));
+        }
       }
+      return response;
+    } on SocketException catch (_) {
+      return _handleOffline('DELETE', endpoint, null, bypassQueue);
+    } on TimeoutException catch (_) {
+      return _handleOffline('DELETE', endpoint, null, bypassQueue);
+    } catch (e) {
+      if (!bypassQueue) {
+        return _handleOffline('DELETE', endpoint, null, bypassQueue);
+      }
+      rethrow;
     }
-    return response;
+  }
+
+  static Future<http.Response> _handleOffline(
+    String method,
+    String endpoint,
+    Object? body,
+    bool bypassQueue,
+  ) async {
+    if (!bypassQueue) {
+      debugPrint(
+        "📡 Мережа недоступна. Додаємо $method $endpoint в офлайн-чергу.",
+      );
+      await OfflineSyncService().enqueueRequest(method, endpoint, body);
+      final bodyStr = jsonEncode({
+        "status": "queued_offline",
+        "detail": "Дію збережено офлайн",
+      });
+      return http.Response.bytes(
+        utf8.encode(bodyStr),
+        200,
+        headers: {'content-type': 'application/json; charset=utf-8'},
+      );
+    } else {
+      throw Exception("Неможливо виконати $method-запит: немає мережі.");
+    }
   }
 
   // ВИХІД

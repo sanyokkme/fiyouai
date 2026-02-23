@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import '../../constants/app_colors.dart';
+import '../../services/notification_service.dart';
 
 class NotificationsSettingsScreen extends StatefulWidget {
   const NotificationsSettingsScreen({super.key});
@@ -15,6 +17,28 @@ class _NotificationsSettingsScreenState
   bool _mealReminders = true;
   bool _vitaminReminders = true;
   bool _exerciseReminders = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadPreferences();
+  }
+
+  Future<void> _loadPreferences() async {
+    final prefs = await SharedPreferences.getInstance();
+    setState(() {
+      _waterReminders = prefs.getBool('notifications_water') ?? true;
+      _mealReminders = prefs.getBool('notifications_meal') ?? true;
+      _vitaminReminders = prefs.getBool('notifications_vitamin') ?? true;
+      _exerciseReminders = prefs.getBool('notifications_exercise') ?? false;
+    });
+  }
+
+  Future<void> _updatePreference(String key, bool value) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool(key, value);
+    await NotificationService().updateSchedules();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -63,8 +87,10 @@ class _NotificationsSettingsScreenState
                         subtitle: 'Отримуйте нагадування випити води',
                         icon: Icons.water_drop_outlined,
                         value: _waterReminders,
-                        onChanged: (val) =>
-                            setState(() => _waterReminders = val),
+                        onChanged: (val) {
+                          setState(() => _waterReminders = val);
+                          _updatePreference('notifications_water', val);
+                        },
                       ),
 
                       _buildSwitchTile(
@@ -72,8 +98,10 @@ class _NotificationsSettingsScreenState
                         subtitle: 'Нагадування про сніданок, обід та вечерю',
                         icon: Icons.restaurant_outlined,
                         value: _mealReminders,
-                        onChanged: (val) =>
-                            setState(() => _mealReminders = val),
+                        onChanged: (val) {
+                          setState(() => _mealReminders = val);
+                          _updatePreference('notifications_meal', val);
+                        },
                       ),
 
                       _buildSwitchTile(
@@ -81,8 +109,10 @@ class _NotificationsSettingsScreenState
                         subtitle: 'Нагадування прийняти вітаміни вчасно',
                         icon: Icons.medication_outlined,
                         value: _vitaminReminders,
-                        onChanged: (val) =>
-                            setState(() => _vitaminReminders = val),
+                        onChanged: (val) {
+                          setState(() => _vitaminReminders = val);
+                          _updatePreference('notifications_vitamin', val);
+                        },
                       ),
 
                       _buildSwitchTile(
@@ -90,8 +120,10 @@ class _NotificationsSettingsScreenState
                         subtitle: 'Мотивація для фізичних вправ',
                         icon: Icons.fitness_center_outlined,
                         value: _exerciseReminders,
-                        onChanged: (val) =>
-                            setState(() => _exerciseReminders = val),
+                        onChanged: (val) {
+                          setState(() => _exerciseReminders = val);
+                          _updatePreference('notifications_exercise', val);
+                        },
                       ),
                     ],
                   ),
